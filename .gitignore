@@ -53,3 +53,9 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+Debug/
+Drivers/CMSIS/
+Drivers/STM32F4xx_HAL_Driver/
+*.ioc
+.settings/
