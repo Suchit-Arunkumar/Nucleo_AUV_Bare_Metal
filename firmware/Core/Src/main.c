@@ -1,23 +1,25 @@
-#include "stm32f446xx.h"
+#include <stdio.h>
+#include "system_init.h"
+#include "gpio.h"
+#include "uart.h"
 
-#define LED_PIN (1 << 5)
+int main(void)
+{
+    system_clock_init();
 
-int main(void){
+    systick_init();
 
-	RCC->AHB1ENR |= (1 << 0); 		// enable GPIOA clock
-	GPIOA->MODER &= ~(3 << 10);		//clear bits 11:10 for PA5
-	GPIOA->MODER |=  (1 << 10);		// set PA5 as output (01)
+    gpio_init(GPIOA, 5);
 
-	while(1){
+    uart2_init();
+    printf("BOOT OK\r\n");
 
-		GPIOA->BSRR = LED_PIN;				// set PA5 high
-		for (int i = 0; i < 1000000; i++){
-		}
 
-		GPIOA->BSRR =(1 << 21);				// set PA5 low
-		for (int i = 0; i < 1000000; i++){
-				}
 
-}
-
+    while(1)
+    {
+        gpio_toggle(GPIOA, 5);
+        printf("tick=%lu\r\n", g_tick);
+        delay_ms(500);
+    }
 }
