@@ -70,7 +70,7 @@ void i2c_write(uint8_t addr, uint8_t *data, uint8_t len)
 
 	for(int i = 0; i < len; i++){
 
-		while(!(I2C1->SR1 & I2C_SR1_TxE));
+		while(!(I2C1->SR1 & I2C_SR1_TXE));
 		I2C1->DR = data[i] ;
 
 	}
@@ -104,16 +104,12 @@ void i2c_read(uint8_t addr, uint8_t *buf, uint8_t len)
     //    b. wait for RXNE flag in SR1
     //    c. read byte from DR into buf[i]
 	for(int i = 0; i < len; i++){
-
-		if(i == (len - 1)){
-
-			I2C1->CR1 &= ~I2C_CR1_ACK;
-			I2C1->CR1 |= I2C_CR1_STOP;
-
-		}
-		while(!(I2C1->SR1 & I2C_SR1_RxE));
-		 buf[i] = I2C1->DR ;
-
+	    if(i == (len - 1)){
+	        I2C1->CR1 &= ~I2C_CR1_ACK;
+	        I2C1->CR1 |= I2C_CR1_STOP;
+	    }
+	    while(!(I2C1->SR1 & I2C_SR1_RXNE));
+	    buf[i] = I2C1->DR;
 	}
 
 }
