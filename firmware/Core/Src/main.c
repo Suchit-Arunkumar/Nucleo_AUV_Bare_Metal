@@ -3,6 +3,9 @@
 #include "gpio.h"
 #include "uart.h"
 #include "uart_packet.h"
+#include "spi.h"
+#include "oled.h"
+#include "sd_card.h"
 
 
 int main(void)
@@ -22,6 +25,18 @@ int main(void)
     //  print confirmation message over UART2 that UART1 is up
     uart2_write_str("UART1 initialized\r\n");
 
+    spi1_init();
+    SD_Status sd_status = sd_init();
+    if (sd_status == SD_OK) {
+        printf("SD OK\r\n");
+    }
+    else {
+        printf("SD FAIL\r\n");
+    }
+
+    oled_init();
+    oled_draw_string(0, 0, "ROV OK");
+    oled_update();
 
     while(1)
     {
