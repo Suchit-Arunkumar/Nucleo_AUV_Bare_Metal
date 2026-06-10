@@ -38,6 +38,9 @@ int main(void)
     oled_draw_string(0, 0, "ROV OK");
     oled_update();
 
+    adc_init();
+    dac_init();
+
     while(1)
     {
         gpio_toggle(GPIOA, 5);
