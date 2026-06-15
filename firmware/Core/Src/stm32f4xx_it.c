@@ -24,6 +24,7 @@
 #include "stm32f446xx.h"
 #include "ring_buffer.h"
 #include "uart_packet.h"
+#include "control_loop.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -199,5 +200,16 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /* USER CODE BEGIN 1 */
+void TIM7_IRQHandler(void)
+{
+    // 1. Clear the UIF flag in TIM7->SR to prevent re-entry
+	TIM7->SR &= ~TIM_SR_UIF;
+
+    // 2. Toggle PA5 to confirm 50Hz on oscilloscope
+	GPIOA->ODR ^= (1 << 5);
+
+    // 3. Call control_loop_tick()
+	control_loop_tick();
+}
 
 /* USER CODE END 1 */
