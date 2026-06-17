@@ -87,3 +87,121 @@ SD_Status sd_init(void)
 
     return SD_OK;
 }
+
+SD_Status sd_write_block(uint32_t block_addr, const uint8_t *data)
+{
+    uint8_t r1;
+    uint32_t timeout;
+
+    // SDSC cards need byte addressing
+    // block_addr *= 512;
+
+    spi_select_sd();
+
+    // CMD24 = WRITE_BLOCK
+    r1 = sd_send_cmd(24, block_addr, 0x01);
+
+    if (r1 != 0x00)
+    {
+        spi_deselect_sd();
+        spi_transmit(0xFF);
+        return SD_FAIL;
+    }
+
+    // One byte gap before data token
+    spi_transmit(0xFF);
+
+    // Start block token
+    spi_transmit(0xFE);
+
+    // Send 512-byte sector
+    for (uint16_t i = 0; i < 512; i++)
+    {
+        spi_transmit(data[i]);
+    }
+
+    // Dummy CRC (ignored unless CRC enabled)
+    spi_transmit(0xFF);
+    spi_transmit(0xFF);
+
+    // Data response token
+    uint8_t response = spi_receive();
+
+    if ((response & 0x1F) != 0x05)
+    {
+        spi_deselect_sd();
+        spi_transmit(0xFF);
+        return SD_FAIL;
+    }
+
+    // Wait while card is busy
+    timeout = 100000;
+
+    while (--timeout)
+    {
+        if (spi_receive() == 0xFF)
+            break;
+    }
+
+    spi_deselect_sd();
+    spi_transmit(0xFF);
+
+    if (timeout == 0)
+        return SD_FAIL;
+
+    return SD_OK;
+}
+
+SD_Status sd_read_block(uint32_t block_addr, uint8_t *buf)
+{
+    uint8_t r1;
+    uint32_t timeout;
+
+    // SDSC cards require byte addressing
+    // block_addr *= 512;
+
+    // 1. CS low, send CMD17
+    spi_select_sd();
+
+    r1 = sd_send_cmd(17, block_addr, 0x01);
+
+    if (r1 != 0x00)
+    {
+        spi_deselect_sd();
+        spi_transmit(0xFF);
+        return SD_FAIL;
+    }
+
+    // 2. Wait for start token 0xFE
+    timeout = 100000;
+
+    while (--timeout)
+    {
+        if (spi_receive() == 0xFE)
+            break;
+    }
+
+    if (timeout == 0)
+    {
+        spi_deselect_sd();
+        spi_transmit(0xFF);
+        return SD_FAIL;
+    }
+
+    // 3. Read 512-byte sector
+    for (uint16_t i = 0; i < 512; i++)
+    {
+        buf[i] = spi_receive();
+    }
+
+    // 4. Discard CRC16
+    spi_receive();
+    spi_receive();
+
+    // 5. CS high + extra clocks
+    spi_deselect_sd();
+    spi_transmit(0xFF);
+
+    // 6. Success
+    return SD_OK;
+}

@@ -200,16 +200,21 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /* USER CODE BEGIN 1 */
+
 void TIM7_IRQHandler(void)
 {
-    // 1. Clear the UIF flag in TIM7->SR to prevent re-entry
+    // 1. Clear UIF flag
 	TIM7->SR &= ~TIM_SR_UIF;
 
-    // 2. Toggle PA5 to confirm 50Hz on oscilloscope
+    // 2. Set log_pending flag
+	log_pending = 1;
+
+    // 3. Toggle PA5
 	GPIOA->ODR ^= (1 << 5);
 
-    // 3. Call control_loop_tick()
+    // 4. Call control_loop_tick()
 	control_loop_tick();
 }
+
 
 /* USER CODE END 1 */
