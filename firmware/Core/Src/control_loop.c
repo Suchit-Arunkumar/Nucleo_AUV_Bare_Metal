@@ -31,6 +31,9 @@
 
 #define THRUST_DEADZONE 0.02f
 
+volatile uint8_t telem_pending = 0;
+volatile uint8_t log_pending = 0;
+
 // =============================================================================
 // SECTION 2 — ALLOCATION MATRICES
 //

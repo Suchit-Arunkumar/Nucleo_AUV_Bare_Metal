@@ -1,6 +1,7 @@
 #include "packet.h"
 #include "ring_buffer.h"
 #include "crc_hw.h"
+#include <string.h>
 
 void packet_build_telemetry(const TelemetryPayload *tp, uint8_t *out_buf){
 

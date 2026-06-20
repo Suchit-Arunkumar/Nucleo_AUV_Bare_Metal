@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "system_init.h"
 #include "gpio.h"
 #include "uart.h"
@@ -10,51 +11,94 @@
 #include "control_loop.h"
 #include "adc.h"
 #include "dac.h"
+#include "struct.h"
+#include "packet.h"
+#include "sd_logger.h"
+#include "crc_hw.h"
+#include "i2c.h"
+#include "bar30.h"
+#include "timer_pwm.h"
+#include "timer_timebase.h"
+#include "iwdg.h"
 
-
-static uint32_t last_telem = 0;
 static CommandPayload cmd;
+
 
 int main(void)
 {
+    // 1. Configure system clocks (180 MHz PLL)
     system_clock_init();
 
+    // 2. Start 1 ms system tick
     systick_init();
 
+    // 3. Initialize GPIO
     gpio_init(GPIOA, 5);
 
+    // 4. Initialize UART2 for debug prints
     uart2_init();
     printf("BOOT OK\r\n");
 
-    // initialize USART1 with DMA RX and IDLE interrupt
-    uart1_init();
+    // 5. Initialize CRC peripheral
+    crc_init();
 
-    //  print confirmation message over UART2 that UART1 is up
-    uart2_write_str("UART1 initialized\r\n");
+    // 6. Initialize ADC
+    adc_init();
 
+    // 7. Initialize DAC
+    dac_init();
+
+    // 8. Initialize SPI
     spi1_init();
+
+    // 9. Initialize SD card (slow startup)
     SD_Status sd_status = sd_init();
-    if (sd_status == SD_OK) {
+    if (sd_status == SD_OK)
+    {
         printf("SD OK\r\n");
     }
-    else {
+    else
+    {
         printf("SD FAIL\r\n");
     }
 
+    // 10. Initialize I2C
+    i2c1_init();
+
+    // 11. Initialize Bar30 pressure sensor
+    bar30_init();
+
+    // 12. Initialize OLED display
     oled_init();
     oled_draw_string(0, 0, "ROV OK");
     oled_update();
 
-    adc_init();
-    dac_init();
+    // 13. initialize USART1 with DMA RX and IDLE interrupt
+    uart1_init();
 
-    tim7_init();
+    // print confirmation message over UART2 that UART1 is up
+    uart2_write_str("UART1 initialized\r\n");
+
+    // 14. Initialize thruster PWM outputs (neutral)
+    timer3_pwm_init();
+
+    // 15. Initialize microsecond timebase
+    timer2_timebase_init();
+
+    // 16. Initialize control loop state
     control_loop_init();
 
-    while(1)
+    // 17. Start 50 Hz control loop timer ISR
+    tim7_init();
+
+    // 18. Arm watchdog LAST
+    iwdg_init();
+
+    while (1)
     {
         // 1. Read shared variable safely with IRQ guard
         __disable_irq();
+
         // read link_ok or any other shared state here
         bool local_link = link_ok;
 
@@ -64,76 +108,71 @@ int main(void)
         //    (non-blocking — compare g_tick, don't use delay_ms)
         static uint32_t last_print = 0;
 
+        if (packet_parse_cmd(&cmd))
+        {
+            float pose[6] =
+            {
+                cmd.current_x,
+                cmd.current_y,
+                cmd.current_z,
+                cmd.current_roll,
+                cmd.current_pitch,
+                cmd.current_yaw
+            };
 
+            float target[6] =
+            {
+                cmd.target_x,
+                cmd.target_y,
+                cmd.target_z,
+                cmd.target_roll,
+                cmd.target_pitch,
+                cmd.target_yaw
+            };
 
-         if (packet_parse_cmd(&cmd))
-         {
-             float pose[6] =
-             {
-                 cmd.current_x,
-                 cmd.current_y,
-                 cmd.current_z,
-                 cmd.current_roll,
-                 cmd.current_pitch,
-                 cmd.current_yaw
-             };
+            cmd_update(
+                pose,
+                target,
+                cmd.armed
+            );
+        }
 
-             float target[6] =
-             {
-                 cmd.target_x,
-                 cmd.target_y,
-                 cmd.target_z,
-                 cmd.target_roll,
-                 cmd.target_pitch,
-                 cmd.target_yaw
-             };
-
-             cmd_update(
-                 pose,
-                 target,
-                 cmd.armed
-             );
-         }
-
-
-
-
-        if (g_tick - last_print >= 500) {
+        if (g_tick - last_print >= 500)
+        {
             last_print = g_tick;
             printf("tick=%lu link=%d\r\n", g_tick, local_link);
-
-
         }
+
         // Send telemetry at 50 Hz
-           if ((g_tick - last_telem) >= 20)
-           {
-               last_telem = g_tick;
 
-               TelemetryPayload tp;
-               uint8_t tx_buf[PACKET_SIZE];
+        uint8_t telem_pending_local;
 
-               memset(&tp, 0, sizeof(tp));
+        __disable_irq();
+        telem_pending_local = telem_pending;
+        telem_pending = 0;
+        __enable_irq();
 
-               tp.depth_m     = cmd.current_z;
-               tp.raw_depth_m = cmd.current_z;
+        if (telem_pending_local)
+        {
+            TelemetryPayload tp;
+            uint8_t tx_buf[PACKET_SIZE];
 
-               control_loop_get_pwm(tp.esc_pwm, 8);
+            memset(&tp, 0, sizeof(tp));
 
-               tp.armed   = control_loop_get_armed();
-               tp.link_ok = control_loop_get_link();
+            tp.depth_m     = cmd.current_z;
+            tp.raw_depth_m = cmd.current_z;
 
-               tp.sat_flags = 0;
+            control_loop_get_pwm(tp.esc_pwm, 8);
 
-               packet_build_telemetry(&tp, tx_buf);
+            tp.armed   = control_loop_get_armed();
+            tp.link_ok = control_loop_get_link();
 
-               uart1_write_buf(tx_buf, PACKET_SIZE);
+            tp.sat_flags = 0;
 
+            packet_build_telemetry(&tp, tx_buf);
 
-           }
-
-
-           // Run control loop if TIM7 set control_pending
-                   control_loop_tick();
+            uart1_write_buf(tx_buf, PACKET_SIZE);
+        }
 
         // 3. Check log_pending flag and write log record
 
@@ -156,17 +195,19 @@ int main(void)
 
             control_loop_get_pwm(rec.pwm, 8);
 
-            rec.armed   = control_loop_get_armed();
-            rec.link_ok = control_loop_get_link();
-            rec.link_ok = link_ok;
+            rec.armed = control_loop_get_armed();
 
-            // CRC placeholder for now
-            rec.crc16 = 0;
+            rec.link_ok = control_loop_get_link();
+
+            rec.crc16 = crc_compute(
+                (uint8_t *)&rec,
+                sizeof(LogRecord) - sizeof(rec.crc16)
+            );
 
             sd_logger_write(&rec);
         }
 
+        // Feed watchdog
+        iwdg_kick();
     }
-
-
 }

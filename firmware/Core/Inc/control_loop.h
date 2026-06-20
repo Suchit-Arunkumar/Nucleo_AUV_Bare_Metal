@@ -17,8 +17,10 @@
 #define CMD_TIMEOUT_MS  500u    /* ms without a valid CMD before failsafe     */
 
 extern volatile uint32_t g_tick;
-
 extern bool link_ok;
+extern volatile uint8_t telem_pending;
+extern volatile uint8_t log_pending;
+
 void control_loop_get_pwm(uint16_t *out, uint8_t len);
 bool control_loop_get_armed(void);
 bool control_loop_get_link(void);

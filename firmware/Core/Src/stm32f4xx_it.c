@@ -25,6 +25,8 @@
 #include "ring_buffer.h"
 #include "uart_packet.h"
 #include "control_loop.h"
+#include "timer_basic.h"
+#include "sd_logger.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */

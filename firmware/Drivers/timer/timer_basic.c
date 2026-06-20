@@ -1,5 +1,7 @@
 #include "timer_basic.h"
 
+
+
 void tim7_init(void)
 {
     // 1. Enable TIM7 clock in RCC

@@ -4,7 +4,6 @@
 #include <string.h>
 
 static uint32_t current_block = 0;
-volatile uint8_t log_pending = 0;
 
 void sd_logger_init(void)
 {

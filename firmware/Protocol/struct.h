@@ -1,5 +1,5 @@
-#ifndef STRUCTS_H
-#define STRUCTS_H
+#ifndef STRUCT_H
+#define STRUCT_H
 
 #include <stdint.h>
 #include "stm32f446xx.h"
@@ -29,7 +29,7 @@ typedef struct __attribute__((packed)) {
     uint8_t  armed;
     uint8_t  sat_flags;
     uint8_t  link_ok;
-    uint8_t  reserved[1];
+    uint8_t  reserved[5];
 } TelemetryPayload;
 _Static_assert(sizeof(TelemetryPayload) == PAYLOAD_LEN,"TelemetryPayload size mismatch");
 

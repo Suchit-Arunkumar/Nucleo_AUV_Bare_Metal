@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include "sd_card.h"
 
-extern volatile uint8_t log_pending;
 
 typedef struct __attribute__((packed))
 {

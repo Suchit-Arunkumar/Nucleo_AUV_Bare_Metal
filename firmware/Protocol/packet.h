@@ -4,7 +4,7 @@
 #define PACKET_H
 
 #include <stdint.h>
-#include "structs.h"   // TelemetryPayload, CommandPayload
+#include "struct.h"   // TelemetryPayload, CommandPayload
 
 
 
