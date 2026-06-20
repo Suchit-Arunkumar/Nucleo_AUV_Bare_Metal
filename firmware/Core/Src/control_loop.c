@@ -267,3 +267,32 @@ void checkCommandTimeout(void)
         enterFailsafe();
     }
 }
+
+
+void control_loop_get_pwm(uint16_t *out, uint8_t len)
+{
+    if (out == NULL)
+    {
+        return;
+    }
+
+    if (len > N_THR)
+    {
+        len = N_THR;
+    }
+
+    for (uint8_t i = 0; i < len; i++)
+    {
+        out[i] = (uint16_t)g_pwm_current[i];
+    }
+}
+
+bool control_loop_get_armed(void)
+{
+    return g_armed;
+}
+
+bool control_loop_get_link(void)
+{
+    return link_ok;
+}

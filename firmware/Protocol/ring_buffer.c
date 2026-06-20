@@ -1,5 +1,4 @@
 #include "ring_buffer.h"
-#include "ring_buffer.h"
 
 // internal buffer
 static uint8_t  rx_buf[RX_BUF_SIZE];

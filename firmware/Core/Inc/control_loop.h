@@ -19,6 +19,9 @@
 extern volatile uint32_t g_tick;
 
 extern bool link_ok;
+void control_loop_get_pwm(uint16_t *out, uint8_t len);
+bool control_loop_get_armed(void);
+bool control_loop_get_link(void);
 
 void control_loop_init(void);
 
