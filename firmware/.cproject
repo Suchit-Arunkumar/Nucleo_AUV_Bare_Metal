@@ -45,7 +45,7 @@
 									<listOptionValue builtIn="false" value="../Core/Inc"/>
 									<listOptionValue builtIn="false" value="../Drivers/dac"/>
 									<listOptionValue builtIn="false" value="../Drivers/adc"/>
-									<listOptionValue builtIn="false" value="../Devices/sd_card"/>
+									<listOptionValue builtIn="false" value="../Protocol/sd_card"/>
 									<listOptionValue builtIn="false" value="../Devices/oled"/>
 									<listOptionValue builtIn="false" value="../Drivers/uart"/>
 									<listOptionValue builtIn="false" value="../Drivers/timer"/>
@@ -92,7 +92,7 @@
 								<listOptionValue builtIn="false" value="../Core/Inc"/>
 								<listOptionValue builtIn="false" value="../Drivers/dac"/>
 								<listOptionValue builtIn="false" value="../Drivers/adc"/>
-								<listOptionValue builtIn="false" value="../Devices/sd_card"/>
+								<listOptionValue builtIn="false" value="../Protocol/sd_card"/>
 								<listOptionValue builtIn="false" value="../Devices/oled"/>
 								<listOptionValue builtIn="false" value="../Drivers/spi"/>
 								<listOptionValue builtIn="false" value="../Protocol"/>
@@ -121,9 +121,9 @@
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Devices/bar30"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Devices/oled"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Devices/sd_card"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Protocol"/>
+						<entry excluding="sd_card" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Protocol"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Protocol/sd_card"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -201,9 +201,9 @@
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Devices/bar30"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Devices/oled"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Devices/sd_card"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Protocol"/>
+						<entry excluding="sd_card" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Protocol"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Protocol/sd_card"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
