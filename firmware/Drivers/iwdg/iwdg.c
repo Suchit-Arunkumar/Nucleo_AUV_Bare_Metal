@@ -1,23 +1,27 @@
 #include "iwdg.h"
 
+/* T = (RLR+1) * PRESCALER / f_LSI
+ * PR=3 -> /32, RLR=500
+ * f_LSI = 47 kHz (max): T = 341 ms  <- kick interval designed against this
+ * f_LSI = 32 kHz (typ): T = 501 ms
+ * f_LSI = 17 kHz (min): T = 943 ms  <- worst-case detection latency
+ */
+#define IWDG_PR_VALUE   3U
+#define IWDG_RLR_VALUE  500U
+
 void iwdg_init(void)
 {
-    // 1. Unlock PR and RLR by writing 0x5555 to KR
-	IWDG->KR = (0x5555 << 0);
-
-    // 2. Set prescaler in PR (divide LSI by 32 → 1kHz tick)
-    IWDG->PR = (3 << 0);
-
-	// 3. Set RLR reload value for ~500ms timeout
-    IWDG->RLR = (500 << 0);
-
-	// 4. Start IWDG by writing 0xCCCC to KR
-    IWDG->KR = (0xCCCC << 0);
-
+    RCC->CSR |= RCC_CSR_LSION;
+    while (!(RCC->CSR & RCC_CSR_LSIRDY)) {}
+    IWDG->KR = 0x5555U;
+    IWDG->PR = IWDG_PR_VALUE;
+    while (IWDG->SR & IWDG_SR_PVU) {}
+    IWDG->RLR = IWDG_RLR_VALUE;
+    while (IWDG->SR & IWDG_SR_RVU) {}
+    IWDG->KR = 0xCCCCU;
 }
 
 void iwdg_kick(void)
 {
-    // 1. Write 0xAAAA to KR to reload counter
-	IWDG->KR = (0xAAAA << 0);
+    IWDG->KR = 0xAAAAU;
 }
