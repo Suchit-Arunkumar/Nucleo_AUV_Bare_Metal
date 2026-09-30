@@ -57,8 +57,6 @@ Pin conflicts:
   `timer3_pwm_init()` ORs AF2 into a field already holding AF5 without
   clearing it: `5 | 2 = 7`. Both peripherals lose the pin. SPI1 MISO is
   non-functional from that point, which means SD card reads return garbage.
-- **PA4** is configured as DAC1 analog output and then reclaimed by SPI1 as
-  the OLED chip-select. DAC1 has no output pin.
 - **PA2/PA3** are reprogrammed from USART2 AF7 to GPIO output by the OLED
   reset/DC init. The debug UART dies partway through boot.
 - **PA5** is toggled as a heartbeat LED via `GPIOA->ODR` while the pin is in

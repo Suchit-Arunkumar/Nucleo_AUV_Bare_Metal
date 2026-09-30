@@ -165,7 +165,7 @@ never been instrumented.
 | Driver | Status |
 |---|---|
 | ADC1 | `adc_read()` — zero call sites |
-| DAC1 | `dac_set()` — zero call sites |
+| DAC1 | `dac_init()` and `dac_set()` — zero call sites; PA4 belongs to the OLED chip-select |
 | TIM2 (µs timebase) | `micros()` — zero call sites |
 | Bar30 / MS5837 | `bar30_read()` — zero call sites; only `bar30_init()` runs |
 
@@ -223,9 +223,6 @@ instances, all the same mistake — `|=` applied without first clearing the fiel
 
 **Other open defects**
 
-- **PA4** is claimed by DAC1 (analog) and then by SPI1 as OLED chip-select
-  (output). SPI clears the field first, so it wins cleanly — DAC1's output pin
-  is gone.
 - **PA2/PA3** are reprogrammed from AF7 to GPIO output by the OLED reset/DC
   init, killing the debug UART from that point onward.
 - **PA5** is toggled as a heartbeat LED via `GPIOA->ODR` while in AF mode.

@@ -10,7 +10,6 @@
 #include "timer_basic.h"
 #include "control_loop.h"
 #include "adc.h"
-#include "dac.h"
 #include "struct.h"
 #include "packet.h"
 #include "sd_logger.h"
@@ -44,9 +43,6 @@ int main(void)
 
     // 6. Initialize ADC
     adc_init();
-
-    // 7. Initialize DAC
-    dac_init();
 
     // 8. Initialize SPI
     spi1_init();
