@@ -31,6 +31,11 @@ int main(void)
     // 2. Start 1 ms system tick
     systick_init();
 
+    // 2a. Thruster PWM outputs to neutral before anything that can block:
+    //     sd_init() and bar30_init() poll with no timeout, and until this
+    //     runs the ESC signal pins are floating inputs.
+    timer3_pwm_init();
+
     // 3. TIM7 tick probe output (PB10 / Arduino D6)
     gpio_init(TICK_PROBE_PORT, TICK_PROBE_PIN);
 
@@ -75,9 +80,6 @@ int main(void)
 
     // print confirmation message over UART2 that UART1 is up
     uart2_write_str("UART1 initialized\r\n");
-
-    // 14. Initialize thruster PWM outputs (neutral)
-    timer3_pwm_init();
 
     // 15. Initialize microsecond timebase
     timer2_timebase_init();
