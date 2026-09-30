@@ -26,10 +26,12 @@ void uart1_init(void)
 
     // 4. set PA9 alternate function to AF7 (USART1 TX) in AFRH
     //    note: PA9 is pin 9, AFRH is AFR[1], position = (9-8)*4 = 4
+	GPIOA->AFR[1] &= ~(0xF << 4);
 	GPIOA->AFR[1] |= (7 << 4);
 
     // 5. set PA10 alternate function to AF7 (USART1 RX) in AFRH
     //    note: PA10 is pin 10, position = (10-8)*4 = 8
+	GPIOA->AFR[1] &= ~(0xF << 8);
 	GPIOA->AFR[1] |= (7 << 8);
 
     // 6. enable USART1 clock in RCC APB2ENR
@@ -38,8 +40,8 @@ void uart1_init(void)
     // 7. set baud rate in USART1 BRR (APB2 = 90MHz, target = 115200)
 	USART1->BRR = ((APB2CLK + UART1_BR/2)/UART1_BR);
 
-    // 8. enable receiver (RE bit) in USART1 CR1
-	USART1->CR1 |= USART_CR1_RE;
+    // 8. enable transmitter (TE) and receiver (RE) in USART1 CR1
+	USART1->CR1 |= USART_CR1_TE | USART_CR1_RE;
 
     // 9. enable IDLE line interrupt (IDLEIE bit) in USART1 CR1
 	USART1->CR1 |= USART_CR1_IDLEIE;
