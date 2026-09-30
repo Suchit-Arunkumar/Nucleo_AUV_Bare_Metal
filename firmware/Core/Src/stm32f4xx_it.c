@@ -208,8 +208,10 @@ void TIM7_IRQHandler(void)
     // 1. Clear UIF flag
 	TIM7->SR &= ~TIM_SR_UIF;
 
-    // 2. Set log_pending flag
+    // 2. Set log_pending and telem_pending: the main loop writes one log
+    //    record and sends one telemetry frame per tick
 	log_pending = 1;
+	telem_pending = 1;
 
     // 3. Toggle the tick probe pin (see timer_basic.h). BSRR rather than
     //    ODR ^= so the store can only ever change this one pin.
