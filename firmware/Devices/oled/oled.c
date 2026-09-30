@@ -3,9 +3,15 @@
 #include "stm32f446xx.h"
 #include <string.h>
 
-// DC pin  = PA3 (HIGH = data, LOW = command)
-// RES pin = PA2 (active low reset)
+// DC pin  = PA8 (HIGH = data, LOW = command)   -- Arduino D7
+// RES pin = PC7 (active low reset)              -- Arduino D9
 // CS pin  = PA4 (managed in spi.c)
+// (moved off PA2/PA3, which are USART2 TX/RX for the debug console)
+
+#define OLED_DC_PORT   GPIOA
+#define OLED_DC_PIN    8
+#define OLED_RES_PORT  GPIOC
+#define OLED_RES_PIN   7
 
 static uint8_t framebuf[OLED_WIDTH * (OLED_HEIGHT / 8)];
 
@@ -109,25 +115,28 @@ static const uint8_t font5x7[][5] = {
 
 static void dc_res_init(void)
 {
-    // 1. configure PA2 (RES) as GPIO output in MODER
-    GPIOA->MODER &= ~(3U << (2*2));
-    GPIOA->MODER |=  (1U << (2*2));
+    // 0. enable GPIOA and GPIOC clocks (nothing else enables GPIOC)
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN | RCC_AHB1ENR_GPIOCEN;
 
-    // 2. configure PA3 (DC) as GPIO output in MODER
-    GPIOA->MODER &= ~(3U << (2*3));
-    GPIOA->MODER |=  (1U << (2*3));
+    // 1. configure RES as GPIO output in MODER
+    OLED_RES_PORT->MODER &= ~(3U << (2*OLED_RES_PIN));
+    OLED_RES_PORT->MODER |=  (1U << (2*OLED_RES_PIN));
+
+    // 2. configure DC as GPIO output in MODER
+    OLED_DC_PORT->MODER &= ~(3U << (2*OLED_DC_PIN));
+    OLED_DC_PORT->MODER |=  (1U << (2*OLED_DC_PIN));
 
     // 3. set RES high using BSRR
-    GPIOA->BSRR = (1U << 2);
+    OLED_RES_PORT->BSRR = (1U << OLED_RES_PIN);
 
     // 4. set DC high using BSRR
-    GPIOA->BSRR = (1U << 3);
+    OLED_DC_PORT->BSRR = (1U << OLED_DC_PIN);
 }
 
 static void write_cmd(uint8_t cmd)
 {
     // 1. pull DC low (command mode)
-    GPIOA->BSRR = (1U << (3 + 16));
+    OLED_DC_PORT->BSRR = (1U << (OLED_DC_PIN + 16));
 
     // 2. select OLED CS
     spi_select_oled();
@@ -142,7 +151,7 @@ static void write_cmd(uint8_t cmd)
 static void write_data(uint8_t data)
 {
     // 1. pull DC high (data mode)
-    GPIOA->BSRR = (1U << 3);
+    OLED_DC_PORT->BSRR = (1U << OLED_DC_PIN);
 
     // 2. select OLED CS
     spi_select_oled();
@@ -165,9 +174,9 @@ void oled_init(void)
     dc_res_init();
 
     // 2. hardware reset: pull RES low, delay ~10ms, pull RES high, delay ~10ms
-    GPIOA->BSRR = (1U << (2 + 16));
+    OLED_RES_PORT->BSRR = (1U << (OLED_RES_PIN + 16));
     delay_ms_simple(10);
-    GPIOA->BSRR = (1U << 2);
+    OLED_RES_PORT->BSRR = (1U << OLED_RES_PIN);
     delay_ms_simple(10);
 
     // 3. send init command sequence
@@ -210,7 +219,7 @@ void oled_update(void)
     write_cmd(0x22); write_cmd(0); write_cmd(7);
 
     // 3. pull DC high (data mode)
-    GPIOA->BSRR = (1U << 3);
+    OLED_DC_PORT->BSRR = (1U << OLED_DC_PIN);
 
     // 4. select OLED CS
     spi_select_oled();
