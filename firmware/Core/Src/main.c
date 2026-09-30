@@ -12,6 +12,7 @@
 #include "adc.h"
 #include "struct.h"
 #include "packet.h"
+#include "ring_buffer.h"
 #include "sd_logger.h"
 #include "crc_hw.h"
 #include "i2c.h"
@@ -147,7 +148,7 @@ int main(void)
         if (g_tick - last_print >= 500)
         {
             last_print = g_tick;
-            printf("tick=%lu link=%d\r\n", g_tick, local_link);
+            printf("tick=%lu link=%d rxdrop=%lu\r\n", g_tick, local_link, rx_dropped_count());
         }
 
         // Send telemetry at 50 Hz
