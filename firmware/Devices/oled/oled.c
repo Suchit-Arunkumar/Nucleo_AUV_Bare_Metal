@@ -1,5 +1,6 @@
 #include "oled.h"
 #include "spi.h"
+#include "system_init.h"   // delay_ms
 #include "stm32f446xx.h"
 #include <string.h>
 
@@ -163,11 +164,6 @@ static void write_data(uint8_t data)
     spi_deselect_oled();
 }
 
-static void delay_ms_simple(uint32_t ms)
-{
-    for (uint32_t i = 0; i < ms * 8000; i++) __NOP();
-}
-
 void oled_init(void)
 {
     // 1. call dc_res_init()
@@ -175,9 +171,9 @@ void oled_init(void)
 
     // 2. hardware reset: pull RES low, delay ~10ms, pull RES high, delay ~10ms
     OLED_RES_PORT->BSRR = (1U << (OLED_RES_PIN + 16));
-    delay_ms_simple(10);
+    delay_ms(10);
     OLED_RES_PORT->BSRR = (1U << OLED_RES_PIN);
-    delay_ms_simple(10);
+    delay_ms(10);
 
     // 3. send init command sequence
     write_cmd(0xAE);

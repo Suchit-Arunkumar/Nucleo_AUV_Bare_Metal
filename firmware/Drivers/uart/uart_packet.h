@@ -8,5 +8,6 @@
 
 void uart1_init(void);
 void uart1_write_buf(uint8_t *buf, uint16_t len);
+void uart1_write_byte(uint8_t b);
 
 #endif
