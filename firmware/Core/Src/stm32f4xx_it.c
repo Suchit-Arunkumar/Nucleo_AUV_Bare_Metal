@@ -211,8 +211,12 @@ void TIM7_IRQHandler(void)
     // 2. Set log_pending flag
 	log_pending = 1;
 
-    // 3. Toggle PA5
-	GPIOA->ODR ^= (1 << 5);
+    // 3. Toggle the tick probe pin (see timer_basic.h). BSRR rather than
+    //    ODR ^= so the store can only ever change this one pin.
+	if (TICK_PROBE_PORT->ODR & (1U << TICK_PROBE_PIN))
+		TICK_PROBE_PORT->BSRR = 1U << (TICK_PROBE_PIN + 16U);
+	else
+		TICK_PROBE_PORT->BSRR = 1U << TICK_PROBE_PIN;
 
     // 4. Call control_loop_tick()
 	control_loop_tick();

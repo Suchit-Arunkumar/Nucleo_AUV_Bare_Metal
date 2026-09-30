@@ -59,8 +59,6 @@ Pin conflicts:
   non-functional from that point, which means SD card reads return garbage.
 - **PA2/PA3** are reprogrammed from USART2 AF7 to GPIO output by the OLED
   reset/DC init. The debug UART dies partway through boot.
-- **PA5** is toggled as a heartbeat LED via `GPIOA->ODR` while the pin is in
-  AF mode for SPI1_SCK. Writing ODR on an AF pin has no effect.
 
 Functional:
 

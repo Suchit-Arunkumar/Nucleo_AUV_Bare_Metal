@@ -31,8 +31,8 @@ int main(void)
     // 2. Start 1 ms system tick
     systick_init();
 
-    // 3. Initialize GPIO
-    gpio_init(GPIOA, 5);
+    // 3. TIM7 tick probe output (PB10 / Arduino D6)
+    gpio_init(TICK_PROBE_PORT, TICK_PROBE_PIN);
 
     // 4. Initialize UART2 for debug prints
     uart2_init();

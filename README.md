@@ -156,7 +156,7 @@ never been instrumented.
 | I2C1 | PB8 / PB9, AF4 | Open-drain, 100 kHz, CCR 225, TRISE 46 |
 | SPI1 | PA5 SCK / PA6 MISO / PA7 MOSI, AF5 | Shared bus: OLED (CS on PA4) and SD card (CS on PB0) |
 | TIM3_CH1 | PA6 | 50 Hz PWM, single channel only |
-| TIM7 | — | 50 Hz control-loop tick |
+| TIM7 | PB10 (D6), GPIO out | 50 Hz control-loop tick; ISR toggles PB10, giving a 25 Hz square wave to scope |
 | CRC | — | Hardware CRC32 over packet payloads |
 | IWDG | — | See above |
 
@@ -225,8 +225,6 @@ instances, all the same mistake — `|=` applied without first clearing the fiel
 
 - **PA2/PA3** are reprogrammed from AF7 to GPIO output by the OLED reset/DC
   init, killing the debug UART from that point onward.
-- **PA5** is toggled as a heartbeat LED via `GPIOA->ODR` while in AF mode.
-  Writing ODR on an AF pin does nothing; the LED is dead.
 - **`pwm_set_us(uint8_t channel, uint16_t us)` ignores `channel`** and always
   writes `TIM3->CCR1`. Only one PWM channel exists.
 - **`sd_logger_init()` has zero call sites**, so `current_block` stays at its
