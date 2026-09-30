@@ -208,6 +208,9 @@ int main(void)
             sd_logger_write(&rec);
         }
 
+        // Write a partly filled log block if it has waited too long
+        sd_logger_poll(g_tick);
+
         // Feed watchdog
         iwdg_kick();
     }
