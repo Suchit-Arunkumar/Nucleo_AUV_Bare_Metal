@@ -4,6 +4,7 @@
 #include "gpio.h"
 #include "uart.h"
 #include "uart_packet.h"
+#include "link.h"
 #include "spi.h"
 #include "oled.h"
 #include "sd_card.h"
@@ -83,11 +84,10 @@ int main(void)
     oled_draw_string(0, 0, "ROV OK");
     oled_update();
 
-    // 13. initialize USART1 with DMA RX and IDLE interrupt
-    uart1_init();
-
-    // print confirmation message over UART2 that UART1 is up
-    uart2_write_str("UART1 initialized\r\n");
+    // 13. Start the Pi link: USART2 over the ST-LINK USB cable, or USART1
+    //     with DMA RX on PA9/PA10 (LINK_PORT_STLINK in link.h)
+    link_init();
+    printf("LINK %s\r\n", link_port_name());
 
     // 15. Initialize microsecond timebase
     timer2_timebase_init();
@@ -179,7 +179,7 @@ int main(void)
 
             packet_build_telemetry(&tp, tx_buf);
 
-            uart1_write_buf(tx_buf, PACKET_SIZE);
+            link_send(tx_buf, PACKET_SIZE);
         }
 
         // 3. Check log_pending flag and write log record
