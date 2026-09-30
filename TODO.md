@@ -6,31 +6,34 @@ the commit history, not here.
 
 ## Verification gaps
 
-- **Never run on hardware since the clock fix.** Every timing constant —
-  `I2C1->CR2 = 45`, `CCR = 225`, `TRISE = 46`, PWM `PSC = 89` on
-  TIM3/TIM4/TIM12, `TIM7->PSC = 1799`, USART1 `BRR` from a 90 MHz APB2 — assumes
-  the 180 MHz clock tree that `ba3acde` made correct. None has been confirmed
-  on silicon: no PWM waveforms scoped, no live link to the Pi, no writes to a
-  real SD card.
-- **Off-target harnesses are not in the repository.** Protocol framing
-  (byte-compared against pico-protocol), PWM register setup, pin ownership
-  after boot, and SD block packing were run on an emulated Cortex-M4 against
-  simulated peripheral registers during development. Committing them with a
-  script that runs under `qemu-arm` would make those results reproducible.
+- **Not yet run on hardware.** Every timing constant — `I2C1->CR2 = 45`,
+  `CCR = 225`, `TRISE = 46`, PWM `PSC = 89` on TIM3/TIM4/TIM12,
+  `TIM7->PSC = 1799`, the USART `BRR` values — assumes the 180 MHz clock tree
+  that `ba3acde` made correct. `tools/hil/hil_test.py` checks the clock rate,
+  boot, the link, the parser and the failsafe on a bare Nucleo. Out of its reach:
+  PWM waveforms (needs a scope), USART1 on PA9/PA10 (needs a USB-serial adapter
+  or a Pi), and SD, Bar30 and OLED (need the parts).
+- **The emulated register-level harnesses are not in the repository.**
+  Protocol framing (byte-compared against pico-protocol), PWM register setup,
+  pin ownership after boot, I2C timeouts, the ring buffer, the USART2 link and
+  SD block packing were run on an emulated Cortex-M4 against simulated
+  peripheral registers during development. The HIL script and its host
+  simulator are committed; these harnesses are not.
+- **The HIL simulator mirrors `main.c` by hand.** `tools/hil/sim/nucleo_sim.c`
+  compiles the real protocol and control-loop sources, but its main loop is a
+  copy of `main.c`'s and has to be kept in step with it.
 - **Warning counts are from arm-none-eabi-gcc 13.2.1,** not the pinned
   11.3.1 toolchain.
 - **Main-loop iteration time unmeasured.** The IWDG kick interval is designed
   against a 341 ms fast-extreme timeout, but worst-case loop period has never
-  been instrumented. The largest known contributor is one blocking SD block
-  write, now about four times a second instead of fifty. `sd_write_block()`
-  can poll the card's busy state up to 100,000 times per write.
+  been instrumented. Known contributors: one blocking SD block write about four
+  times a second (`sd_write_block()` can poll busy up to 100,000 times), and the
+  blocking 62-byte telemetry send, about 5.4 ms every tick.
   *Experiment:* enable DWT CYCCNT (PM0214), sample it at the top of each
   main-loop iteration, accumulate min/max/mean over 1000 iterations, convert
-  at 180 MHz. CYCCNT wraps every ~23.9 s, far longer than one iteration.
-  PB10 already gives the TIM7 tick on a scope for the ISR side.
+  at 180 MHz. PB10 gives the TIM7 tick on a scope for the ISR side.
 - **Peak stack usage unmeasured.** No stack painting. The linker reserves
-  1,024 bytes of stack; the logger no longer takes 512 of them per write, but
-  the actual high-water mark is unknown.
+  1,024 bytes of stack; the actual high-water mark is unknown.
 
 ## Configuration risks
 
@@ -39,40 +42,45 @@ the commit history, not here.
   reset, debugger reload — the `ODRDY` poll becomes a silent infinite hang.
 - **CubeIDE Release configuration has never been set up.** It has only the
   stock include paths and still defines `USE_HAL_DRIVER`.
-- **ESC pins float from reset until PWM init.** PWM init now runs right after
+- **ESC pins float from reset until PWM init.** PWM init runs right after
   `systick_init()`, but the pins are floating inputs through
   `system_clock_init()`. External pull-downs on the eight ESC signal lines
   would close that window.
+- **The default build puts the Pi link on USART2** (ST-LINK USB) for bench
+  testing. The vehicle needs `-DLINK_PORT_STLINK=0`; forgetting it leaves the
+  Pi's UART silent.
 
 ## Open defects
 
 Link to the Pi:
 
-- **`telem_pending` is never set to 1.** Telemetry frames are built and framed
-  correctly (62 bytes, CRC-16, matching pico-protocol) but the branch in
-  `main.c` that sends them is unreachable. Setting it once per TIM7 tick would
-  send at 50 Hz: 62 bytes at 115200 baud is about 5.4 ms of the 20 ms frame,
-  and `uart1_write_buf()` busy-waits for all of it.
 - **PID frames are ignored.** `TYPE_PID` is recognised and skipped; gains are
   compile-time constants.
 - **Telemetry `raw_depth_m` echoes the commanded depth,** not the Bar30,
   because `bar30_read()` is never called.
 - **No protocol version byte.** A payload layout change that keeps `TYPE` and
   `LEN` passes the CRC and decodes to wrong values.
-- **Ring buffer is unsynchronised.** `rx_write()` runs in `USART1_IRQHandler`,
-  `rx_eat()` in the main loop; `rx_head` / `rx_tail` / `rx_count` are
-  non-`volatile` and unguarded. `rx_count` can drift when the interrupt lands
-  inside `rx_eat()`'s read-modify-write, and `rx_write()` never checks for
-  free space, so a burst over 256 bytes overwrites unread data.
+- **USART overruns are not counted.** A byte lost to an overrun (ORE) is not in
+  `rxdrop`; it only shows up as a frame failing its CRC. At 115200 baud the
+  receive interrupt has about 87 µs per byte, and TIM7 (priority 0) can hold it
+  off for the length of `control_loop_tick()`. That hold-off time hasn't been
+  measured.
 
-Blocking and timeouts:
+I2C:
 
-- **I2C and SPI poll status flags with no timeout.** An unresponsive device
-  blocks boot indefinitely; `bar30_init()` and `sd_init()` are both on this
-  path.
+- **`i2c_read()` uses one sequence for every length.** RM0390 gives different
+  ACK/POS/BTF handling for 1-, 2- and 3+-byte master receives. The Bar30 PROM
+  reads are 2 bytes. This has not been exercised against a real sensor.
+- **`bar30_read()` ignores transfer errors.** `bar30_init()` now checks them,
+  but `bar30_read()`, which is never called yet, would compute a depth from a
+  failed read.
 
-SD card:
+SPI and SD card:
 
+- **SPI status polls have no timeout.** `spi_transmit()`/`spi_transfer()` wait
+  on TXE, RXNE and BSY. As bus master these complete whether or not a slave is
+  present, so a missing card can't hang them, but a misconfigured SPI peripheral
+  would.
 - **SDHC/SDXC only.** `sd_write_block()` sends block addresses; byte
   addressing for SDSC cards is commented out, not implemented.
 - **`LogRecord.crc16` holds only the low 16 bits** of the 32-bit hardware CRC.
@@ -81,9 +89,8 @@ SD card:
 
 Same bug class as the fixed AFR writes, currently harmless:
 
-- `SPI1->CR1 |= (3U << 3)` (BR field) and `I2C1->CR2 |= 45` (FREQ field) OR
-  into multi-bit fields without clearing them. Both fields are zero from
-  reset and written once, so the result is correct today.
+- `SPI1->CR1 |= (3U << 3)` ORs into the BR field without clearing it. The
+  field is zero from reset and written once, so the result is correct today.
 
 Dead code:
 
