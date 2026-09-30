@@ -1,98 +1,113 @@
 # Known limitations
 
 Open items in this repository, stated explicitly rather than left for a reader
-to discover.
+to discover. Fixed defects are recorded in the README's engineering log and in
+the commit history, not here.
 
 ## Verification gaps
 
-- **No host-side unit tests.** Nothing in this repository is testable off
-  target. The packet framing, CRC, ring buffer, and thrust allocation are all
-  pure functions that could be compiled and tested natively; none are.
-- **Never verified on hardware since the clock fix.** The firmware previously
-  ran at ~81 MHz due to a PLLCFGR read-modify-write bug. Every downstream
-  timing constant — `I2C1->CR2 = 45`, `CCR = 225`, `TRISE = 46`,
-  `TIM3->PSC = 89`, `TIM7->PSC = 1799` — was written assuming a 45 MHz APB1
-  that only became true after the fix. They should now be correct. This is
-  unconfirmed on silicon.
-- **CRC-32 between this board and the Pico firmware is almost certainly
-  incompatible, not merely unverified.** The STM32 hardware CRC peripheral
-  (`crc_hw.c`) is fixed to the Ethernet polynomial with MSB-first input,
-  init `0xFFFFFFFF`, no input/output reflection, and no final XOR. The
-  common software CRC-32 (zlib and most libraries) reflects both input and
-  output and applies a final XOR of `0xFFFFFFFF`. These produce different
-  results on identical bytes unless the Pico side was deliberately written
-  to match the STM32 variant bit-for-bit. `crc_hw.c` also zero-pads the
-  trailing 1-3 bytes of the 58-byte payload into a full 32-bit word before
-  feeding the peripheral, which the software side would also need to
-  replicate exactly. Given USART1 TX is disabled (see Open defects), the
-  two boards have never exchanged a packet, so this has never been caught
-  in practice.
+- **Never run on hardware since the clock fix.** Every timing constant —
+  `I2C1->CR2 = 45`, `CCR = 225`, `TRISE = 46`, PWM `PSC = 89` on
+  TIM3/TIM4/TIM12, `TIM7->PSC = 1799`, USART1 `BRR` from a 90 MHz APB2 — assumes
+  the 180 MHz clock tree that `ba3acde` made correct. None has been confirmed
+  on silicon: no PWM waveforms scoped, no live link to the Pi, no writes to a
+  real SD card.
+- **Off-target harnesses are not in the repository.** Protocol framing
+  (byte-compared against pico-protocol), PWM register setup, pin ownership
+  after boot, and SD block packing were run on an emulated Cortex-M4 against
+  simulated peripheral registers during development. Committing them with a
+  script that runs under `qemu-arm` would make those results reproducible.
+- **Warning counts are from arm-none-eabi-gcc 13.2.1,** not the pinned
+  11.3.1 toolchain.
 - **Main-loop iteration time unmeasured.** The IWDG kick interval is designed
   against a 341 ms fast-extreme timeout, but worst-case loop period has never
-  been instrumented, so the margin is asserted rather than measured.
-  *Experiment:* enable DWT CYCCNT (PM0214), sample the counter at the top of
-  each main-loop iteration, accumulate min/max/mean over 1000 iterations,
-  convert to ms at 180 MHz. CYCCNT is 32-bit and wraps every ~23.9 s at
-  180 MHz, which is far longer than one iteration, so wrap handling is not
-  needed for per-iteration deltas.
+  been instrumented. The largest known contributor is one blocking SD block
+  write, now about four times a second instead of fifty. `sd_write_block()`
+  can poll the card's busy state up to 100,000 times per write.
+  *Experiment:* enable DWT CYCCNT (PM0214), sample it at the top of each
+  main-loop iteration, accumulate min/max/mean over 1000 iterations, convert
+  at 180 MHz. CYCCNT wraps every ~23.9 s, far longer than one iteration.
+  PB10 already gives the TIM7 tick on a scope for the ISR side.
 - **Peak stack usage unmeasured.** No stack painting. The linker reserves
-  1,536 bytes of heap+stack; actual high-water mark is unknown.
+  1,024 bytes of stack; the logger no longer takes 512 of them per write, but
+  the actual high-water mark is unknown.
 
 ## Configuration risks
 
-- **`PWR_CR.VOS` is relied upon at its reset value (Scale 1)** rather than
+- **`PWR_CR.VOS` is relied on at its reset value (Scale 1)** rather than
   written explicitly. If any path leaves VOS at Scale 2 — bootloader, warm
-  reset, debugger reload — the `ODRDY` poll becomes a silent infinite hang
-  with no diagnostic.
-- **CubeIDE Release configuration has never been set up.** It carries only the
-  five stock include paths, none of the driver paths, and still defines
-  `USE_HAL_DRIVER`. Only the Debug config and the pinned command line in the
-  README have ever built this project.
+  reset, debugger reload — the `ODRDY` poll becomes a silent infinite hang.
+- **CubeIDE Release configuration has never been set up.** It has only the
+  stock include paths and still defines `USE_HAL_DRIVER`.
+- **ESC pins float from reset until PWM init.** PWM init now runs right after
+  `systick_init()`, but the pins are floating inputs through
+  `system_clock_init()`. External pull-downs on the eight ESC signal lines
+  would close that window.
 
 ## Open defects
 
-Pin conflicts:
+Link to the Pi:
 
-- **PA6 ends at AF7 — neither SPI1_MISO (AF5) nor TIM3_CH1 (AF2).**
-  `timer3_pwm_init()` ORs AF2 into a field already holding AF5 without
-  clearing it: `5 | 2 = 7`. Both peripherals lose the pin. SPI1 MISO is
-  non-functional from that point, which means SD card reads return garbage.
-- **PA2/PA3** are reprogrammed from USART2 AF7 to GPIO output by the OLED
-  reset/DC init. The debug UART dies partway through boot.
-
-Functional:
-
-- **`pwm_set_us(uint8_t channel, uint16_t us)` ignores `channel`** and always
-  writes `TIM3->CCR1`. Only one PWM channel is configured.
-- **`sd_logger_init()` has zero call sites.** `current_block` stays at its
-  initializer of 0, so the first log write targets block 0 — the card's MBR.
-- **`LogRecord.timestamp_ms` is never assigned.** The record is an
-  uninitialized stack object and the CRC is computed over the garbage value.
-  `crc_compute()` returns `uint32_t` into a `uint16_t` field.
-- **`USART_CR1_TE` is never set for USART1.** The transmitter is disabled;
-  `uart1_write_buf()` writes into a dead DR.
-- **`telem_pending` is never set to 1.** The telemetry branch in `main.c` is
-  unreachable.
-- **Ring buffer is unsynchronized.** `rx_write()` runs in `USART1_IRQHandler`,
+- **`telem_pending` is never set to 1.** Telemetry frames are built and framed
+  correctly (62 bytes, CRC-16, matching pico-protocol) but the branch in
+  `main.c` that sends them is unreachable. Setting it once per TIM7 tick would
+  send at 50 Hz: 62 bytes at 115200 baud is about 5.4 ms of the 20 ms frame,
+  and `uart1_write_buf()` busy-waits for all of it.
+- **PID frames are ignored.** `TYPE_PID` is recognised and skipped; gains are
+  compile-time constants.
+- **Telemetry `raw_depth_m` echoes the commanded depth,** not the Bar30,
+  because `bar30_read()` is never called.
+- **No protocol version byte.** A payload layout change that keeps `TYPE` and
+  `LEN` passes the CRC and decodes to wrong values.
+- **Ring buffer is unsynchronised.** `rx_write()` runs in `USART1_IRQHandler`,
   `rx_eat()` in the main loop; `rx_head` / `rx_tail` / `rx_count` are
-  non-`volatile` and unguarded. `rx_head` is masked so the array is never
-  indexed out of range, but `rx_count` increments unbounded past
-  `RX_BUF_SIZE` and head silently laps tail. `rx_eat()` can underflow
-  `rx_count`.
+  non-`volatile` and unguarded. `rx_count` can drift when the interrupt lands
+  inside `rx_eat()`'s read-modify-write, and `rx_write()` never checks for
+  free space, so a burst over 256 bytes overwrites unread data.
+
+Blocking and timeouts:
+
 - **I2C and SPI poll status flags with no timeout.** An unresponsive device
-  blocks boot indefinitely. `bar30_init()` and `sd_init()` are both on this
+  blocks boot indefinitely; `bar30_init()` and `sd_init()` are both on this
   path.
+
+SD card:
+
+- **SDHC/SDXC only.** `sd_write_block()` sends block addresses; byte
+  addressing for SDSC cards is commented out, not implemented.
+- **`LogRecord.crc16` holds only the low 16 bits** of the 32-bit hardware CRC.
+- **Up to 11 log records (220 ms) live only in RAM** and are lost on power
+  loss — the cost of packing 12 records per block.
+
+Same bug class as the fixed AFR writes, currently harmless:
+
+- `SPI1->CR1 |= (3U << 3)` (BR field) and `I2C1->CR2 |= 45` (FREQ field) OR
+  into multi-bit fields without clearing them. Both fields are zero from
+  reset and written once, so the result is correct today.
+
+Dead code:
+
+- **ADC1:** `adc_init()` still runs and puts PA0 in analog mode; `adc_read()`
+  has no callers.
+- **DAC1:** `Drivers/dac/` has no callers. Removing the folder also needs its
+  include path removed from `.cproject`.
+- **`micros()`** (TIM2) and **`uart1_write_byte()`** have no callers.
+- **`Protocol/struct.c`** is a zero-byte file that is compiled and linked.
+- **`B_forward`** is defined and never referenced.
 
 Cosmetic:
 
-- **`Protocol/struct.c` is a zero-byte file** that is compiled and linked.
-- **`B_forward` is defined and never referenced.**
-- Six `-O2` warnings remain: `B_forward` unused, `TEMP` set-but-unused in
+- `struct.h` comments are stale: `TelemetryPayload` says `reserved` is 1 byte
+  (it is 5) and gives the CMD Python format string as `'<12f3B5s'` (the
+  struct is `'<12f2B6s'`).
+- `main.c` step comments run 2, 2a, 3 … 6, 8: step 7 (DAC) was removed and
+  PWM init was moved to 2a without renumbering.
+- Six `-O2` warnings: `B_forward` unused, `TEMP` set-but-unused in
   `bar30.c`, `write_data` unused in `oled.c`, `r7` set-but-unused in
   `sd_card.c`, and two `-Waddress-of-packed-member` in `main.c`.
 
 ## Control loop
 
-- **All PID gains are zero.** `kp`, `ki`, `kd`, `kff`, and `FF_OFFSET` are
-  all-zero arrays. The control loop computes and allocates zeros; thrusters
-  never leave neutral. This is scaffolding awaiting tuning.
+- **All PID gains are zero.** `kp`, `ki`, `kd`, `kff` and `FF_OFFSET` are
+  all-zero arrays; every axis outputs zero and every thruster sits at neutral.
+  This is scaffolding awaiting tuning.
