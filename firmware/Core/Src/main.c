@@ -67,8 +67,15 @@ int main(void)
     // 10. Initialize I2C
     i2c1_init();
 
-    // 11. Initialize Bar30 pressure sensor
-    bar30_init();
+    // 11. Initialize Bar30 pressure sensor (fails cleanly if absent)
+    if (bar30_init() == 0)
+    {
+        printf("BAR30 OK\r\n");
+    }
+    else
+    {
+        printf("BAR30 FAIL\r\n");
+    }
 
     // 12. Initialize OLED display
     oled_init();
@@ -92,6 +99,7 @@ int main(void)
 
     // 18. Arm watchdog LAST
     iwdg_init();
+    printf("BOOT DONE\r\n");
 
     while (1)
     {

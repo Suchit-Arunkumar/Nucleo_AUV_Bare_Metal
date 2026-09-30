@@ -11,32 +11,31 @@
 
 static uint16_t prom[8];
 
-void bar30_init(void)
+int bar30_init(void)
 {
     uint8_t cmd;
     uint8_t buf[2];
 
-    // 1. send reset: cmd = BAR30_RESET, i2c_write(BAR30_ADDR, &cmd, 1)
+    // 1. send reset. Stop at the first failed transfer: with no sensor
+    //    every later one would fail too.
     cmd = BAR30_RESET;
-    i2c_write(BAR30_ADDR , &cmd, 1);
+    if (i2c_write(BAR30_ADDR, &cmd, 1) != 0)
+        return -1;
 
     // 2. delay_ms(10)
     delay_ms(10);
 
-    // 3. loop i from 0 to 7:
-    //    a. cmd = BAR30_PROM + (i * 2)
-    //    b. i2c_write(BAR30_ADDR, &cmd, 1)
-    //    c. i2c_read(BAR30_ADDR, buf, 2)
-    //    d. prom[i] = (buf[0] << 8) | buf[1]
+    // 3. read the 8 PROM calibration words
     for(int i = 0; i < 8; i++){
 
     	cmd = BAR30_PROM + (i*2);
-    	i2c_write(BAR30_ADDR , &cmd, 1);
-    	i2c_read(BAR30_ADDR , buf, 2);
+    	if (i2c_write(BAR30_ADDR, &cmd, 1) != 0) return -1;
+    	if (i2c_read(BAR30_ADDR, buf, 2) != 0)   return -1;
     	prom[i] = (buf[0] << 8) | buf[1];
 
     }
 
+    return 0;
 }
 
 float bar30_read(void)

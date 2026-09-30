@@ -29,6 +29,12 @@ void spi1_init(void)
     GPIOA->OSPEEDR |= (3U << (2*6));
     GPIOA->OSPEEDR |= (3U << (2*7));
 
+    // 7a. pull-up on PA6 (MISO). With no card fitted MISO would float and
+    //     sd_init() would read noise; pulled up it reads 0xFF, a clean
+    //     "no card". SD cards also expect MISO pulled up in SPI mode.
+    GPIOA->PUPDR &= ~(3U << (2*6));
+    GPIOA->PUPDR |=  (1U << (2*6));
+
     // 8-10. set PA5, PA6, PA7 to AF5 in AFR[0]. Clear each 4-bit field
     //       before setting it: OR alone merges with whatever an earlier init
     //       left in the field (PA6 once ended up at AF5 | AF2 = AF7 that way).
