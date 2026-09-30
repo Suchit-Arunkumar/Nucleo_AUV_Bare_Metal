@@ -21,10 +21,10 @@ void i2c1_init(void)
 	GPIOB->OTYPER |= GPIO_OTYPER_OT8;
 	GPIOB->OTYPER |= GPIO_OTYPER_OT9;
 
-    // 5. set PB8 AF4 in AFRH (AFR[1])
-	// 6. set PB9 AF4 in AFRH (AFR[1])
-	GPIOB->AFR[1] |= (4 << 0);
-	GPIOB->AFR[1] |= (4 << 4);
+    // 5-6. set PB8 and PB9 to AF4 in AFRH (AFR[1]), clearing each 4-bit
+    //      field first so no earlier AF value can merge in
+	GPIOB->AFR[1] &= ~((0xFU << 0) | (0xFU << 4));
+	GPIOB->AFR[1] |=   (4U   << 0) | (4U   << 4);
 
     // 7. enable I2C1 clock in RCC APB1ENR
 	RCC->APB1ENR |= RCC_APB1ENR_I2C1EN;

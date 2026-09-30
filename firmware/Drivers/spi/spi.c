@@ -29,14 +29,11 @@ void spi1_init(void)
     GPIOA->OSPEEDR |= (3U << (2*6));
     GPIOA->OSPEEDR |= (3U << (2*7));
 
-    // 8. set PA5 to AF5 in AFR[0]
-    GPIOA->AFR[0] |= (5U << 20);
-
-    // 9. set PA6 to AF5 in AFR[0]
-    GPIOA->AFR[0] |= (5U << 24);
-
-    // 10. set PA7 to AF5 in AFR[0]
-    GPIOA->AFR[0] |= (5U << 28);
+    // 8-10. set PA5, PA6, PA7 to AF5 in AFR[0]. Clear each 4-bit field
+    //       before setting it: OR alone merges with whatever an earlier init
+    //       left in the field (PA6 once ended up at AF5 | AF2 = AF7 that way).
+    GPIOA->AFR[0] &= ~((0xFU << 20) | (0xFU << 24) | (0xFU << 28));
+    GPIOA->AFR[0] |=   (5U   << 20) | (5U   << 24) | (5U   << 28);
 
     // 11. configure PA4 (CS_OLED) as GPIO output (MODER = 01)
     GPIOA->MODER &= ~(3U << (2*4));
