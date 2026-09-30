@@ -55,6 +55,7 @@ int main(void)
     SD_Status sd_status = sd_init();
     if (sd_status == SD_OK)
     {
+        sd_logger_init();
         printf("SD OK\r\n");
     }
     else
@@ -186,6 +187,8 @@ int main(void)
         if (pending)
         {
             LogRecord rec;
+
+            rec.timestamp_ms = g_tick;
 
             rec.depth_m = cmd.current_z;
 
