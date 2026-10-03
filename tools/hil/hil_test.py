@@ -13,6 +13,12 @@ Nothing needs to be connected to the board.
     python hil_test.py                 # auto-detects the ST-LINK port
     python hil_test.py --port COM5     # or name it
     python hil_test.py --no-reset      # skip the boot test (no button press)
+    python hil_test.py --no-pwm        # skip the jumper-moving PWM test
+    python hil_test.py --no-iwdg       # skip the watchdog reset test
+
+Optional wiring for the extra tests (each one SKIPs without it):
+    PA15 (CN7 pin 17) -> one ESC pin at a time, moved when prompted
+    MPU-6050 (GY-521): VCC->3V3, GND->GND, SCL->PB8 (D15), SDA->PB9 (D14)
 
 Exit code 0 if every test passes. A Markdown report is written next to this
 script (hil_report.md) for pasting into the README.
@@ -52,6 +58,13 @@ assert struct.calcsize(CMD_FMT) == PAYLOAD_LEN
 assert struct.calcsize(TELEM_FMT) == PAYLOAD_LEN
 
 NEUTRAL_US = 1500
+CYC_PER_US = 180.0                  # DWT counts HCLK
+IWDG_COUNTS = (500 + 1) * 32        # iwdg.c: RLR 500, PR 3 (/32)
+LSI_MIN, LSI_MAX = 17000, 47000     # DS10693, Hz
+PWM_PINS = [                        # channel -> pin, where it is on a Nucleo-64 (UM1724)
+    ("PC6", "CN10 pin 4"), ("PB5", "D4"), ("PC8", "CN10 pin 2"), ("PC9", "CN10 pin 1"),
+    ("PB6", "D10"), ("PB7", "CN7 pin 21"), ("PB14", "CN10 pin 28"), ("PB15", "CN10 pin 26"),
+]
 TICK_HZ = 50                    # TIM7
 CMD_TIMEOUT_MS = 500            # control_loop.c CMD_TIMEOUT_MS
 
@@ -80,6 +93,11 @@ def build_frame(ftype: int, payload: bytes, corrupt_crc: bool = False) -> bytes:
     if corrupt_crc:
         c ^= 0x0001
     return bytes([STX1, STX2]) + body + bytes([c >> 8, c & 0xFF])
+
+
+def build_bench(cmd: bytes) -> bytes:
+    """A TYPE_PID frame carrying a BENCH_HIL command (firmware Core/Src/bench.c)."""
+    return build_frame(TYPE_PID, cmd.ljust(PAYLOAD_LEN, b"\0"))
 
 
 def build_cmd(z: float, armed: int, seq: int, corrupt_crc: bool = False) -> bytes:
@@ -258,6 +276,11 @@ class Link:
         else:
             self._write(frame)
 
+    def bench(self, cmd: bytes):
+        self.mode = "idle"
+        time.sleep(0.05)                            # let the sender thread go quiet
+        self._write(build_bench(cmd))
+
     # --- queries -----------------------------------------------------------
     def telem_since(self, t0: float) -> list[Telemetry]:
         with self.lock:
@@ -297,6 +320,11 @@ class Result:
     def note(self, msg: str):
         self.details.append("info: " + msg)
 
+    def skip(self, why: str):
+        self.status = "SKIP"
+        self.details.append("skipped: " + why)
+        return self
+
 
 def parse_tick(line: str):
     if not line.startswith("tick="):
@@ -306,6 +334,26 @@ def parse_tick(line: str):
         return int(fields["tick"]), int(fields.get("link", -1)), int(fields.get("rxdrop", -1))
     except (ValueError, KeyError):
         return None
+
+
+def kv(line: str) -> dict:
+    return dict(tok.split("=", 1) for tok in line.split()[1:] if "=" in tok)
+
+
+def span(v: str) -> tuple[int, int]:
+    a, b = v.split("-")
+    return int(a), int(b)
+
+
+def latest(link: Link, prefix: str, t0: float, timeout: float, count: int = 1):
+    """The count-th line starting with prefix that arrives after t0."""
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        hits = [ln for t, ln in link.lines_since(t0) if ln.startswith(prefix)]
+        if len(hits) >= count:
+            return hits[count - 1]
+        time.sleep(0.05)
+    return None
 
 
 def test_boot(link: Link, wait_reset: bool) -> Result:
@@ -330,6 +378,8 @@ def test_boot(link: Link, wait_reset: bool) -> Result:
     r.ok(any(ln.startswith("SD ") for ln in lines), "SD init reported a result instead of hanging")
     r.ok(any(ln.startswith("BAR30 ") for ln in lines), "Bar30 init reported a result instead of hanging")
     r.ok(any(ln.startswith("LINK USART2") for ln in lines), "link running on USART2 (ST-LINK VCP)")
+    rst = next((ln for ln in lines if ln.startswith("RESET:")), "")
+    r.ok("PIN" in rst, f"reset cause reported: '{rst}'")
     return r
 
 
@@ -542,6 +592,122 @@ def test_soak(link: Link, seconds: float) -> Result:
     return r
 
 
+def test_timing(link: Link) -> Result:
+    r = Result("Timing on silicon: tick, ISR, main loop",
+               "TIM7 period and jitter, control ISR cost, worst main-loop pass vs the watchdog, UART baud from TX time")
+    link.mode = "idle"
+    line = latest(link, "perf ", time.monotonic(), 6)
+    if not r.ok(line is not None, "perf line received (BENCH_HIL build)"):
+        return r
+    k = kv(line)
+    pmin, pmax = (x / CYC_PER_US for x in span(k["t7"]))
+    imax, iavg = (int(x) / CYC_PER_US for x in k["isr"].split("/"))
+    lmax, lavg = (int(x) / CYC_PER_US for x in k["loop"].split("/"))
+    tx = int(k["tx"]) / CYC_PER_US
+    r.ok(19950 < pmin and pmax < 20050,
+         f"TIM7 period {pmin:.2f}..{pmax:.2f} us since boot (expect 20000; worst {max(20000 - pmin, pmax - 20000):.2f} us off)")
+    r.ok(imax < 1000, f"TIM7 ISR incl. control_loop_tick(): avg {iavg:.1f} us, max {imax:.1f} us ({100 * imax / 20000:.2f} % of the tick)")
+    margin = 341000 / lmax if lmax else 0
+    r.ok(lmax < 341000 / 4,
+         f"main loop: avg {lavg:.0f} us, worst pass {lmax / 1000:.2f} ms; the watchdog's shortest timeout is 341 ms "
+         f"({margin:.0f}x margin)")
+    r.ok(5100 < tx < 5700, f"62-byte telemetry send blocks {tx / 1000:.3f} ms (61 byte times at 115200 = 5.30 ms): "
+                           "the USART2 baud rate, measured")
+    return r
+
+
+def test_stack(link: Link) -> Result:
+    r = Result("Stack high-water mark", "painted MSP: deepest use since boot, across every test so far")
+    line = latest(link, "stack ", time.monotonic(), 6)
+    if not r.ok(line is not None, "stack line received"):
+        return r
+    k = kv(line)
+    peak, res = int(k["peak"]), int(k["reserve"])
+    r.ok(0 < peak < res, f"peak {peak} B of the {res} B the linker reserves ({100 * peak / res:.0f} %)")
+    return r
+
+
+def test_mpu(link: Link) -> Result:
+    r = Result("I2C driver against a real slave (MPU-6050)",
+               "1-, 2-, 6- and 14-byte register reads, checked for plausibility, every 500 ms since boot")
+    line = latest(link, "mpu ", time.monotonic(), 6)
+    if line is None or "absent" in line:
+        r.note("no MPU-6050 at 0x68 on PB8/PB9 at boot")
+        return r.skip("no MPU-6050")
+    k = kv(line)
+    n = int(k["n"])
+    r.ok(n >= 10, f"{n} read cycles (4 transfers each) since boot, WHO_AM_I {k['who']}")
+    r.ok(int(k["err"]) == 0, f"{k['err']} implausible values (WHO_AM_I changed, temperature or |accel| out of range)")
+    r.ok(int(k["i2cerr"]) == 0, f"{k['i2cerr']} bus errors (NACK or timeout)")
+    r.ok(int(k["stale"]) == 0, f"{k['stale']} stale bytes left in DR by a previous read")
+    t14 = int(k["t14"])
+    r.ok(1500 < t14 < 4000, f"slowest 14-byte burst {t14} us (100 kHz floor ~1.7 ms: CCR = 225 is right)")
+    return r
+
+
+def test_pwm(link: Link, interactive: bool) -> Result:
+    r = Result("Eight PWM outputs, measured by the chip",
+               "each ESC pin carries its own channel, 1 us resolution, 20 ms frame (TIM2_CH1 capture on PA15)")
+    if not interactive:
+        return r.skip("--no-pwm")
+    link.bench(b"BENCH:SIG1")
+    try:
+        for ch, (pin, where) in enumerate(PWM_PINS):
+            exp = 1100 + 100 * ch
+            print(f"\n  >>> Put the PA15 jumper (CN7 pin 17) on {pin} ({where}) for thruster T{ch + 1}, "
+                  "then press Enter (s = skip) ", end="", flush=True)
+            if input().strip().lower() == "s":
+                r.note(f"T{ch + 1} {pin}: skipped by operator")
+                continue
+            line = latest(link, "pwm ", time.monotonic(), 3, count=2)   # first window spans the move
+            if not r.ok(line is not None, f"T{ch + 1} {pin}: capture line"):
+                continue
+            k = kv(line)
+            if int(k["n"]) == 0:
+                r.ok(False, f"T{ch + 1} {pin}: no edges on PA15 (jumper on the right pin?)")
+                continue
+            lo, hi = span(k["hi"])
+            plo, phi = span(k["per"])
+            r.ok(abs(lo - exp) <= 1 and abs(hi - exp) <= 1,
+                 f"T{ch + 1} {pin}: high {lo}..{hi} us over {k['n']} pulses (expect {exp}: this channel, no other)")
+            r.ok(abs(plo - 20000) <= 1 and abs(phi - 20000) <= 1, f"T{ch + 1} {pin}: period {plo}..{phi} us")
+    finally:
+        link.bench(b"BENCH:SIG0")
+    line = latest(link, "pwm ", time.monotonic(), 6, count=2)
+    if line:
+        k = kv(line)
+        r.ok(int(k["n"]) > 0 and k["hi"] == "1500-1500", f"signature off: last pin back at neutral, {k['hi']} us")
+    return r
+
+
+def test_iwdg(link: Link, runs: int) -> Result:
+    r = Result("Watchdog catches a hung main loop",
+               "with TIM7 still running the control loop, a stalled main loop is reset inside the LSI window")
+    lo, hi = 1000 * IWDG_COUNTS / LSI_MAX, 1000 * IWDG_COUNTS / LSI_MIN
+    times = []
+    for i in range(runs):
+        t0 = time.monotonic()
+        link.bench(b"BENCH:HANG")
+        ack = link.wait_line(lambda ln: ln == "BENCH HANG", 3, t0)
+        if not r.ok(ack is not None, f"run {i + 1}: main loop stopped on command"):
+            continue
+        boot = link.wait_line(lambda ln: ln == "BOOT OK", 4, ack[0])
+        if not r.ok(boot is not None, f"run {i + 1}: board reset itself"):
+            continue
+        times.append(1000 * (boot[0] - ack[0]))
+        rst = link.wait_line(lambda ln: ln.startswith("RESET:"), 2, boot[0])
+        r.ok(rst is not None and "IWDG" in rst[1], f"run {i + 1}: reset cause '{rst[1] if rst else '?'}'")
+        link.wait_line(lambda ln: ln == "BOOT DONE", 10, boot[0])
+        time.sleep(1.0)
+    if times:
+        r.ok(all(lo * 0.95 <= t <= hi + 50 for t in times),
+             "stall -> reset " + ", ".join(f"{t:.0f}" for t in times)
+             + f" ms (window {lo:.0f}..{hi:.0f} ms from the LSI spec, plus a few ms of boot)")
+        f = IWDG_COUNTS / (sum(times) / len(times) / 1000)
+        r.note(f"implied LSI on this chip: {f / 1000:.1f} kHz (spec 17..47 kHz, typical 32)")
+    return r
+
+
 # ---------------------------------------------------------------------------
 def find_port() -> str:
     ports = list(serial.tools.list_ports.comports())
@@ -568,7 +734,7 @@ def write_report(path, results, port, commit, crc_errors, started):
     lines = [
         "# Hardware-in-the-loop test report", "",
         f"- Date: {started:%Y-%m-%d %H:%M}",
-        f"- Board: NUCLEO-F446RE, nothing attached, link over ST-LINK USB ({port})",
+        f"- Board: NUCLEO-F446RE, link over ST-LINK USB ({port}); optional MPU-6050 on I2C1 and a PA15 jumper",
         f"- Firmware commit: `{commit}`",
         f"- Host: {platform.system()} {platform.release()}, Python {platform.python_version()}",
         f"- Board -> laptop CRC errors, whole run: {crc_errors}", "",
@@ -589,6 +755,8 @@ def main():
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--no-reset", action="store_true", help="skip the boot test (no RESET button press)")
     ap.add_argument("--soak", type=float, default=60, help="soak duration in seconds (0 to skip)")
+    ap.add_argument("--no-pwm", action="store_true", help="skip the jumper-moving PWM test")
+    ap.add_argument("--no-iwdg", action="store_true", help="skip the watchdog reset test")
     ap.add_argument("--report", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "hil_report.md"))
     args = ap.parse_args()
 
@@ -614,6 +782,14 @@ def main():
         ]
         if args.soak > 0:
             steps.append(lambda: test_soak(link, args.soak))
+        steps += [
+            lambda: test_timing(link),
+            lambda: test_stack(link),
+            lambda: test_mpu(link),
+            lambda: test_pwm(link, not args.no_pwm),
+        ]
+        if not args.no_iwdg:
+            steps.append(lambda: test_iwdg(link, 3))
         for step in steps:
             r = step()
             results.append(r)
