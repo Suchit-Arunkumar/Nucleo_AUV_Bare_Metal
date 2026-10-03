@@ -6,6 +6,7 @@
 #include "packet.h"
 #include "ring_buffer.h"
 #include <string.h>
+#include "bench.h"
 
 // -----------------------------------------------------------------------------
 // CRC-16/IBM-3740: poly 0x1021, init 0xFFFF, no reflection, no final XOR.
@@ -74,6 +75,9 @@ uint8_t packet_parse_cmd(CommandPayload *out_cmd)
 
         // Valid frame. Consume it whole either way.
         rx_eat(PACKET_SIZE);
+
+        if (type == TYPE_PID)
+            bench_pid_frame(&pkt[HEADER_SIZE]);   // BENCH_HIL commands; no-op otherwise
 
         if (type != TYPE_CMD)
             continue;   // valid but not for us (e.g. PID) -- skip, keep scanning

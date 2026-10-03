@@ -27,6 +27,7 @@
 #include "control_loop.h"
 #include "timer_basic.h"
 #include "sd_logger.h"
+#include "bench.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -205,6 +206,8 @@ void SysTick_Handler(void)
 
 void TIM7_IRQHandler(void)
 {
+	bench_tim7_entry();
+
     // 1. Clear UIF flag
 	TIM7->SR &= ~TIM_SR_UIF;
 
@@ -222,6 +225,7 @@ void TIM7_IRQHandler(void)
 
     // 4. Call control_loop_tick()
 	control_loop_tick();
+	bench_tim7_exit();     /* duration; PWM signature when commanded */
 }
 
 

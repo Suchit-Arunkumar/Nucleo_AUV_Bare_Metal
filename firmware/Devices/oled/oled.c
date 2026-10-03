@@ -149,6 +149,7 @@ static void write_cmd(uint8_t cmd)
     spi_deselect_oled();
 }
 
+__attribute__((unused))   // single-byte path; oled_update() streams the frame instead
 static void write_data(uint8_t data)
 {
     // 1. pull DC high (data mode)
