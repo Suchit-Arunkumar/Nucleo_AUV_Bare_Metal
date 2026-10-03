@@ -21,12 +21,35 @@
 #include "timer_pwm.h"
 #include "timer_timebase.h"
 #include "iwdg.h"
+#include "bench.h"
 
 static CommandPayload cmd;
+
+// Why the last reset happened (RCC_CSR, RM0390 6.3.21), then clear the flags
+// so the next boot reports only its own cause. Power-on sets POR, PIN and BOR
+// together; a watchdog reset sets IWDG and PIN.
+static void reset_cause_report(void)
+{
+    uint32_t csr = RCC->CSR;
+
+    printf("RESET:%s%s%s%s%s%s%s\r\n",
+           (csr & RCC_CSR_LPWRRSTF) ? " LPWR" : "",
+           (csr & RCC_CSR_WWDGRSTF) ? " WWDG" : "",
+           (csr & RCC_CSR_IWDGRSTF) ? " IWDG" : "",
+           (csr & RCC_CSR_SFTRSTF)  ? " SOFT" : "",
+           (csr & RCC_CSR_PORRSTF)  ? " POR"  : "",
+           (csr & RCC_CSR_PINRSTF)  ? " PIN"  : "",
+           (csr & RCC_CSR_BORRSTF)  ? " BOR"  : "");
+
+    RCC->CSR |= RCC_CSR_RMVF;
+}
 
 
 int main(void)
 {
+    // 0. BENCH_HIL: paint the unused stack so its high-water mark can be read
+    bench_stack_paint();
+
     // 1. Configure system clocks (180 MHz PLL)
     system_clock_init();
 
@@ -44,6 +67,7 @@ int main(void)
     // 4. Initialize UART2 for debug prints
     uart2_init();
     printf("BOOT OK\r\n");
+    reset_cause_report();
 
     // 5. Initialize CRC peripheral
     crc_init();
@@ -79,6 +103,9 @@ int main(void)
         printf("BAR30 FAIL\r\n");
     }
 
+    // 11a. BENCH_HIL: an MPU-6050 on the same bus, if one is fitted
+    bench_mpu_init();
+
     // 12. Initialize OLED display
     oled_init();
     oled_draw_string(0, 0, "ROV OK");
@@ -92,6 +119,9 @@ int main(void)
     // 15. Initialize microsecond timebase
     timer2_timebase_init();
 
+    // 15a. BENCH_HIL: DWT cycle counter, PA15 capture on TIM2_CH1
+    bench_init();
+
     // 16. Initialize control loop state
     control_loop_init();
 
@@ -104,6 +134,19 @@ int main(void)
 
     while (1)
     {
+        bench_loop_top();
+
+        // BENCH_HIL "BENCH:HANG": stop here, as a hung main loop would. The
+        // TIM7 ISR keeps running the control loop, so this also shows that
+        // a live timer interrupt does not keep the watchdog fed.
+        if (bench_hang_requested())
+        {
+            printf("BENCH HANG\r\n");
+            for (;;)
+            {
+            }
+        }
+
         // 1. Read shared variable safely with IRQ guard
         __disable_irq();
 
@@ -149,6 +192,7 @@ int main(void)
         {
             last_print = g_tick;
             printf("tick=%lu link=%d rxdrop=%lu\r\n", g_tick, local_link, rx_dropped_count());
+            bench_status();
         }
 
         // Send telemetry at 50 Hz
@@ -170,7 +214,12 @@ int main(void)
             tp.depth_m     = cmd.current_z;
             tp.raw_depth_m = cmd.current_z;
 
-            control_loop_get_pwm(tp.esc_pwm, 8);
+            // esc_pwm sits in a packed struct, so its address is not
+            // guaranteed 2-byte aligned; fill an aligned local and copy
+            // the bytes, rather than hand a uint16_t* to an odd address.
+            uint16_t pwm_aligned[8];
+            control_loop_get_pwm(pwm_aligned, 8);
+            memcpy(tp.esc_pwm, pwm_aligned, sizeof(pwm_aligned));
 
             tp.armed   = control_loop_get_armed();
             tp.link_ok = control_loop_get_link();
@@ -179,7 +228,9 @@ int main(void)
 
             packet_build_telemetry(&tp, tx_buf);
 
+            bench_tx_begin();
             link_send(tx_buf, PACKET_SIZE);
+            bench_tx_end();
         }
 
         // 3. Check log_pending flag and write log record
@@ -203,7 +254,9 @@ int main(void)
             rec.pitch_deg = cmd.current_pitch;
             rec.yaw_deg   = cmd.current_yaw;
 
-            control_loop_get_pwm(rec.pwm, 8);
+            uint16_t rec_pwm[8];                  // same reason as above
+            control_loop_get_pwm(rec_pwm, 8);
+            memcpy(rec.pwm, rec_pwm, sizeof(rec_pwm));
 
             rec.armed = control_loop_get_armed();
 
@@ -219,6 +272,9 @@ int main(void)
 
         // Write a partly filled log block if it has waited too long
         sd_logger_poll(g_tick);
+
+        // BENCH_HIL: one MPU-6050 read cycle every 500 ms, offset from the status line
+        bench_mpu_poll(g_tick);
 
         // Feed watchdog
         iwdg_kick();

@@ -40,6 +40,9 @@ volatile uint8_t log_pending = 0;
 // FORWARD  B  (6×8)   tau = B · T
 // INVERSE  B⁺ (8×6)   T  = B⁺ · U
 // =============================================================================
+// Kept as the reference the pseudo-inverse below was computed from; not
+// used at run time.
+__attribute__((unused))
 static const float B_forward[N_DOF][N_THR] = {
     { 0.0f,     0.0f,     0.0f,     0.0f,    0.7070f, -0.7070f,  0.7070f,  0.7070f},
     { 0.0f,     0.0f,     0.0f,     0.0f,   -0.7070f,  0.7070f,  0.7070f, -0.7070f},
