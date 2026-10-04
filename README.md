@@ -562,7 +562,7 @@ source column says which.
 | | Figure | Source |
 |---|---|---|
 | **Scope** | | |
-| Hand-written firmware | ~3,100 non-blank lines of C, no HAL/LL (ST startup and `system_stm32f4xx.c` excluded) | `wc` |
+| Hand-written firmware | 2,245 lines of C (cloc), 843 lines of comments; no HAL/LL (ST startup, `system_stm32f4xx.c`, CMSIS excluded) | cloc |
 | Peripherals driven at register level | 17 blocks: RCC, PWR, FLASH, GPIO, USART1, USART2, DMA2, SPI1, I2C1, TIM2, TIM3, TIM4, TIM7, TIM12, IWDG, CRC, ADC1; plus SysTick, NVIC and DWT in the core | source |
 | Thruster outputs | 8 PWM channels on 3 timers (TIM3, TIM4, TIM12), 1 µs resolution, 50 Hz | source |
 | Wire protocol | 62-byte frames, CRC-16/IBM-3740, byte-identical to the vehicle's RP2350 firmware | off-target test |
