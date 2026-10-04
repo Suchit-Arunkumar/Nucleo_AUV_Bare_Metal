@@ -14,10 +14,11 @@ Bring-up found three defects that compiling never showed. Measured results are i
 [Key figures](#key-figures) and
 [Hardware-in-the-loop verification](#hardware-in-the-loop-verification).
 
-Built as groundwork for Team Tiburon's AUV (SAUVC 2026). **It has never been
-deployed on the vehicle**, which runs separate RP2350 firmware. It is a driver
-stack verified on a bare development board, not flight software, and it says so
-wherever that matters.
+**Scope.** The STM32 control path for Team Tiburon's AUV (SAUVC 2026), developed
+and verified on a NUCLEO-F446RE bench rig. The competition vehicle ran the
+team's RP2350 firmware, which speaks the same wire protocol
+([pico-protocol](https://github.com/Suchit-Arunkumar/pico-protocol)); this stack
+is bench-verified and not yet integrated on the vehicle.
 
 ---
 
@@ -54,7 +55,7 @@ Open issues are listed in [TODO.md](TODO.md).
 | Verified on hardware | **Yes, on a bare NUCLEO-F446RE**: 14 / 14 HIL tests, 2026-10-04 ([reports](tools/hil/reports/)) |
 | Exercised on hardware | Clock tree, SysTick, TIM2/3/4/7/12, USART2 + RX interrupt, I2C1 (against an MPU-6050), IWDG, RCC reset flags, the protocol, control loop and failsafe |
 | Not exercised on hardware | USART1 + DMA on PA9/PA10, SD card writes, the OLED, the Bar30, ESCs and thrusters |
-| Deployed on a vehicle | **No** |
+| Vehicle integration | Not yet: bench-verified only. The SAUVC 2026 vehicle ran the RP2350 firmware, which uses the same wire protocol |
 
 ---
 
@@ -308,7 +309,7 @@ laptop.
 
 115200 baud, framed identically to
 [pico-protocol](https://github.com/Suchit-Arunkumar/pico-protocol), the
-RP2350 firmware the vehicle actually runs, so the Pi-side parser accepts
+RP2350 firmware used on the competition vehicle, so the Pi-side parser accepts
 frames from either board. Telemetry goes out once per 50 Hz tick. Commands are
 accepted at any rate.
 
@@ -395,9 +396,9 @@ groups separately so no group saturates the others, maps thrust to PWM with a
 deadzone and a 50 µs-per-tick slew limit, and runs a 500 ms command-timeout
 failsafe. Yaw error is wrapped to ±180°.
 
-**The structure is complete; the gains are not.** `kp`, `ki`, `kd`, `kff` and
-`FF_OFFSET` are all zero, so every axis outputs zero and all thrusters sit at
-neutral. This is scaffolding awaiting tuning, not a tuned controller.
+**Gains not yet tuned.** The structure above is complete and timed on hardware;
+`kp`, `ki`, `kd`, `kff` and `FF_OFFSET` are zero, so every axis outputs zero and
+all thrusters hold neutral. Tuning needs the vehicle in water.
 
 **Measured.** The whole tick (timeout check, PID, allocation, PWM writes) runs
 in 8.3 µs on average and 45.6 µs at worst. The 500 ms command-timeout failsafe
