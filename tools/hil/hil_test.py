@@ -790,12 +790,23 @@ def main():
         ]
         if not args.no_iwdg:
             steps.append(lambda: test_iwdg(link, 3))
-        for step in steps:
+        for i, step in enumerate(steps):
             r = step()
             results.append(r)
             print(f"\n[{r.status}] {r.name}")
             for d in r.details:
                 print("    " + d)
+            # Every later test needs the main loop. If boot never finished, or
+            # no status lines arrive, running them only produces noise (and
+            # eight pointless PWM prompts): stop here and say why.
+            dead = (i == 0 and r.status == "FAIL" and any("BOOT DONE" in d and d.startswith("FAIL") for d in r.details)) \
+                or (r.name.startswith("Console heartbeat") and any(d.startswith("FAIL: 0 status lines") for d in r.details))
+            if dead:
+                last = [ln for _, ln in link.lines_since(0)][-3:]
+                print("\n  !!! Boot did not reach the main loop, so every remaining test would fail for the same reason."
+                      "\n      Stopping. Last console lines: " + " | ".join(last) +
+                      "\n      Send this output; the last line printed shows which init step hung.")
+                break
     except KeyboardInterrupt:
         print("\ninterrupted")
     finally:

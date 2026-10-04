@@ -118,6 +118,7 @@ static void boot(void)
     port_printf("MPU 0x68\r\n");
     port_printf("LINK USART2 ST-LINK VCP\r\n");
     control_loop_init();
+    port_printf("TIMERS OK\r\n");
     port_printf("BOOT DONE\r\n");
 }
 
