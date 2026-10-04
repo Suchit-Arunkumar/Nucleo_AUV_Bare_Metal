@@ -298,7 +298,7 @@ a jumper from PA15 (TIM2_CH1 input capture, both edges, 1 µs ticks) is moved
 across the eight pins. Every pin showed exactly its own channel's width over
 25 pulses (200 pulses in all, 0 µs deviation) and a 20,000 µs period, then
 returned to 1,500 µs when the signature was switched off
-([report](tools/hil/reports/2026-10-04_1c32d43.md)). The capture shares the
+([report](tools/hil/reports/2026-10-04_0ed4c05.md)). The capture shares the
 clock tree with the timers it measures, so it checks PSC, ARR, CCR and pin
 routing exactly; the absolute clock rate is checked separately against the
 laptop.
@@ -501,9 +501,9 @@ for the vehicle.
 
 ### Results
 
-Firmware `c24f106` unless noted, 2026-10-04. Full reports:
-[`c24f106`](tools/hil/reports/2026-10-04_c24f106.md) (final firmware),
-[`1c32d43`](tools/hil/reports/2026-10-04_1c32d43.md) (PWM pin sweep; same PWM
+Firmware `5a2af27` unless noted, 2026-10-04. Full reports:
+[`5a2af27`](tools/hil/reports/2026-10-04_5a2af27.md) (final firmware),
+[`0ed4c05`](tools/hil/reports/2026-10-04_0ed4c05.md) (PWM pin sweep; same PWM
 code). Host-measured times include Windows USB-serial latency.
 
 | Test | Result | Measured |
@@ -520,7 +520,7 @@ code). Host-measured times include Windows USB-serial latency.
 | Timing | PASS | tick 19,999.66–20,000.32 µs; ISR 8.3 µs avg / 45.6 µs max; main loop 17.77 ms worst; TX 5.292 ms |
 | Stack | PASS | 872 B peak of 1,024 B reserved |
 | I2C vs MPU-6050 | PASS | `PWR_MGMT_1` = 0x00 after wake; 187 cycles × 4 reads, 0 errors; 14-byte read 1,572 µs |
-| Eight PWM outputs | PASS (`1c32d43`) | T1–T8 at 1,100–1,800 µs exactly, 25 pulses each; period 20,000 µs on all 8 |
+| Eight PWM outputs | PASS (`0ed4c05`) | T1–T8 at 1,100–1,800 µs exactly, 25 pulses each; period 20,000 µs on all 8 |
 | Watchdog | PASS | 3 / 3 hangs reset in 563, 562, 563 ms; reset cause `IWDG PIN`; LSI ≈ 28.5 kHz |
 
 The PWM test drives channel *k* at 1,100 + 100*k* µs, so a pin carrying the
@@ -536,9 +536,9 @@ the next two runs were 13 / 14 and 14 / 14.
 
 | Defect | How it showed | Root cause | Fix |
 |---|---|---|---|
-| Boot hung in `iwdg_init()` | Console stopped after `LINK`, on every reset, with no watchdog reset | PR written, then an unbounded spin on `SR.PVU` *before* the watchdog was started; the update never completed | ST's order: start, unlock, write PR/RLR, bounded wait, reload. `1c32d43` |
-| TIM2 prescaler never loaded | Found while bringing up the capture; would have made every capture and `micros()` reading 90× fast | PSC is preloaded and only latches on an update event, 2³² counts (47.7 s) away | `EGR.UG` after writing PSC. `1c32d43` |
-| `i2c_write()` dropped the last byte of multi-byte writes | MPU-6050 test: exactly 2 implausible values per cycle over 187 cycles, 0 bus errors | STOP set right after the last byte entered DR, without waiting for BTF; the wake command `{0x6B, 0x00}` lost its `0x00` and the sensor stayed asleep | Wait for BTF before STOP; `PWR_MGMT_1` read back to prove it. `c24f106` |
+| Boot hung in `iwdg_init()` | Console stopped after `LINK`, on every reset, with no watchdog reset | PR written, then an unbounded spin on `SR.PVU` *before* the watchdog was started; the update never completed | ST's order: start, unlock, write PR/RLR, bounded wait, reload. `0ed4c05` |
+| TIM2 prescaler never loaded | Found while bringing up the capture; would have made every capture and `micros()` reading 90× fast | PSC is preloaded and only latches on an update event, 2³² counts (47.7 s) away | `EGR.UG` after writing PSC. `0ed4c05` |
+| `i2c_write()` dropped the last byte of multi-byte writes | MPU-6050 test: exactly 2 implausible values per cycle over 187 cycles, 0 bus errors | STOP set right after the last byte entered DR, without waiting for BTF; the wake command `{0x6B, 0x00}` lost its `0x00` and the sensor stayed asleep | Wait for BTF before STOP; `PWR_MGMT_1` read back to prove it. `5a2af27` |
 
 ### Running it
 
@@ -569,30 +569,30 @@ source column says which.
 | Defects found and fixed, each with root cause and commit | 28 (3 of them found on hardware) | [Engineering log](#engineering-log) |
 | Test harness | 14 automated HIL tests, ~6 min per run; host simulator for development without a board | `tools/hil/` |
 | **Timing, measured on silicon** | | |
-| Control-tick period (TIM7, 50 Hz) | 19,999.66–20,000.32 µs over the whole run: worst 0.34 µs off nominal (17 ppm) | DWT, report `c24f106` |
-| Control ISR (PID + 6×8 allocation + 8 PWM writes) | 8.3 µs average, 45.6 µs worst: 0.23 % of the 20 ms tick | DWT, report `c24f106` |
-| Main-loop pass | 4 µs average, 17.77 ms worst: 19× inside the watchdog's 341 ms shortest timeout | DWT, report `c24f106` |
-| UART baud rate | 62-byte frame sent in 5.292 ms vs 5.295 ms theoretical at 115,200 baud (−0.06 %) | DWT, report `c24f106` |
-| System clock vs host clock | within 0.22 % over 9.5 s (limit 1 %; USB timestamp jitter dominates) | report `c24f106` |
+| Control-tick period (TIM7, 50 Hz) | 19,999.66–20,000.32 µs over the whole run: worst 0.34 µs off nominal (17 ppm) | DWT, report `5a2af27` |
+| Control ISR (PID + 6×8 allocation + 8 PWM writes) | 8.3 µs average, 45.6 µs worst: 0.23 % of the 20 ms tick | DWT, report `5a2af27` |
+| Main-loop pass | 4 µs average, 17.77 ms worst: 19× inside the watchdog's 341 ms shortest timeout | DWT, report `5a2af27` |
+| UART baud rate | 62-byte frame sent in 5.292 ms vs 5.295 ms theoretical at 115,200 baud (−0.06 %) | DWT, report `5a2af27` |
+| System clock vs host clock | within 0.22 % over 9.5 s (limit 1 %; USB timestamp jitter dominates) | report `5a2af27` |
 | **Link and failsafe, measured on silicon** | | |
-| Soak, 60 s at 50 Hz both ways | 3,002 frames, 0 CRC errors, 0 dropped bytes, 0 link drops, 0 resets | report `c24f106` |
-| Data integrity | 3,002 / 3,002 random float32 values returned bit-exact | report `c24f106` |
-| Parser robustness | 146 / 146 frames recovered through random junk, decoy headers and split writes | report `c24f106` |
-| Command-timeout failsafe (500 ms) | 3 / 3 runs disarmed; 535–542 ms host-measured incl. USB latency | report `c24f106` |
-| Corrupted-frame rejection | 0 bad-CRC values ever acted on; link dropped 528 ms after the last good frame | report `c24f106` |
-| Host → board → host round trip | 38 ms median, 53 ms p95 (Windows USB-serial latency included) | report `c24f106` |
+| Soak, 60 s at 50 Hz both ways | 3,002 frames, 0 CRC errors, 0 dropped bytes, 0 link drops, 0 resets | report `5a2af27` |
+| Data integrity | 3,002 / 3,002 random float32 values returned bit-exact | report `5a2af27` |
+| Parser robustness | 146 / 146 frames recovered through random junk, decoy headers and split writes | report `5a2af27` |
+| Command-timeout failsafe (500 ms) | 3 / 3 runs disarmed; 535–542 ms host-measured incl. USB latency | report `5a2af27` |
+| Corrupted-frame rejection | 0 bad-CRC values ever acted on; link dropped 528 ms after the last good frame | report `5a2af27` |
+| Host → board → host round trip | 38 ms median, 53 ms p95 (Windows USB-serial latency included) | report `5a2af27` |
 | **Outputs and peripherals, measured on silicon** | | |
-| PWM outputs | 8 / 8 pins carry their own channel; 200 pulses captured, 0 µs error at 1 µs resolution; 20,000 µs period on every pin | TIM2 capture, report `1c32d43` |
-| I2C against a real slave (MPU-6050) | 748 transfers (1, 2, 6 and 14 bytes), 0 errors, 0 bus errors; 1.047 g at rest, 32.3 °C | report `c24f106` |
-| I2C bus rate | 14-byte burst read in 1,572 µs vs ~1,550 µs computed for 100 kHz | report `c24f106` |
-| Watchdog | 6 / 6 deliberate main-loop hangs reset in 561–563 ms; reset cause read back as IWDG | reports `1c32d43`, `c24f106` |
-| This chip's LSI oscillator | ≈ 28.5 kHz, derived from the watchdog timeout (datasheet range 17–47 kHz) | report `c24f106` |
+| PWM outputs | 8 / 8 pins carry their own channel; 200 pulses captured, 0 µs error at 1 µs resolution; 20,000 µs period on every pin | TIM2 capture, report `0ed4c05` |
+| I2C against a real slave (MPU-6050) | 748 transfers (1, 2, 6 and 14 bytes), 0 errors, 0 bus errors; 1.047 g at rest, 32.3 °C | report `5a2af27` |
+| I2C bus rate | 14-byte burst read in 1,572 µs vs ~1,550 µs computed for 100 kHz | report `5a2af27` |
+| Watchdog | 6 / 6 deliberate main-loop hangs reset in 561–563 ms; reset cause read back as IWDG | reports `0ed4c05`, `5a2af27` |
+| This chip's LSI oscillator | ≈ 28.5 kHz, derived from the watchdog timeout (datasheet range 17–47 kHz) | report `5a2af27` |
 | Boot to main loop, nothing attached | 62–95 ms, SD and Bar30 absence handled without hanging | reports |
 | **Memory** | | |
 | Flash, vehicle build | 16,472 B, 3.1 % of 512 KiB | `arm-none-eabi-size` |
 | Flash, bench build (with test hooks) | 20,192 B, 3.9 % | `arm-none-eabi-size` |
 | Static RAM, vehicle build | 4,384 B, 3.3 % of 128 KiB | `arm-none-eabi-size` |
-| Stack high-water mark | 872 B peak (painted MSP), against a 1,024 B linker reservation | report `c24f106` |
+| Stack high-water mark | 872 B peak (painted MSP), against a 1,024 B linker reservation | report `5a2af27` |
 | SD write amplification | 1 block write per 12 log records: 250 writes for 3,000 records, vs 3,000 before | off-target test |
 | Compiler warnings at `-O2` | 2, both marking known gaps ([TODO.md](TODO.md)) | build |
 
@@ -609,15 +609,15 @@ commit message records what broke, why, and what changed.
 
 | Defect | Effect | Fix |
 |---|---|---|
-| `iwdg_init()` spun on `SR.PVU` before starting the watchdog | Boot hung after `LINK`, every time, with no reset | `1c32d43` |
-| TIM2 PSC written but never loaded (no `EGR.UG`) | `micros()` and PWM capture 90× fast for the first 47.7 s after boot | `1c32d43` |
-| `i2c_write()` set STOP before BTF | Last byte of every multi-byte write dropped; MPU-6050 never left sleep | `c24f106` |
+| `iwdg_init()` spun on `SR.PVU` before starting the watchdog | Boot hung after `LINK`, every time, with no reset | `0ed4c05` |
+| TIM2 PSC written but never loaded (no `EGR.UG`) | `micros()` and PWM capture 90× fast for the first 47.7 s after boot | `0ed4c05` |
+| `i2c_write()` set STOP before BTF | Last byte of every multi-byte write dropped; MPU-6050 never left sleep | `5a2af27` |
 
 ### Found by the compiler
 
 | Defect | Effect | Fix |
 |---|---|---|
-| `control_loop_get_pwm()` handed `&tp.esc_pwm`, a member of a packed struct | Unaligned `uint16_t*`: undefined behaviour (`-Waddress-of-packed-member`) | `10c9f68` |
+| `control_loop_get_pwm()` handed `&tp.esc_pwm`, a member of a packed struct | Unaligned `uint16_t*`: undefined behaviour (`-Waddress-of-packed-member`) | `8996036` |
 
 ### Bug class: read-modify-write onto a field that isn't zero
 
