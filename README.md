@@ -15,10 +15,15 @@ Bring-up found three defects that compiling never showed. Measured results are i
 [Hardware-in-the-loop verification](#hardware-in-the-loop-verification).
 
 **Scope.** The STM32 control path for Team Tiburon's AUV (SAUVC 2026), developed
-and verified on a NUCLEO-F446RE bench rig. The competition vehicle ran the
-team's RP2350 firmware, which speaks the same wire protocol
-([pico-protocol](https://github.com/Suchit-Arunkumar/pico-protocol)); this stack
-is bench-verified and not yet integrated on the vehicle.
+and verified on a NUCLEO-F446RE bench rig; not yet integrated on the vehicle.
+On the competition vehicle these jobs were split between a Raspberry Pi (VN-200
+IMU, Wayfinder DVL) and the team's RP2350 (Pico 2) firmware (Bar30 depth, SD
+logging, TFT display), which speaks the same wire protocol
+([pico-protocol](https://github.com/Suchit-Arunkumar/pico-protocol)). The control
+law here (PID, 6×8 thrust allocation, command-timeout failsafe) is ported from
+that firmware's tuning sketch. The STM32 Bar30, SD and OLED drivers are
+separate register-level implementations, exercised on the bench only with
+those parts absent.
 
 ---
 
@@ -55,7 +60,7 @@ Open issues are listed in [TODO.md](TODO.md).
 | Verified on hardware | **Yes, on a bare NUCLEO-F446RE**: 14 / 14 HIL tests, 2026-10-04 ([reports](tools/hil/reports/)) |
 | Exercised on hardware | Clock tree, SysTick, TIM2/3/4/7/12, USART2 + RX interrupt, I2C1 (against an MPU-6050), IWDG, RCC reset flags, the protocol, control loop and failsafe |
 | Not exercised on hardware | USART1 + DMA on PA9/PA10, SD card writes, the OLED, the Bar30, ESCs and thrusters |
-| Vehicle integration | Not yet: bench-verified only. The SAUVC 2026 vehicle ran the RP2350 firmware, which uses the same wire protocol |
+| Vehicle integration | Not yet: bench-verified only. On the SAUVC 2026 vehicle the Pi ran the VN-200 and DVL and the RP2350 (Pico 2) firmware ran the Bar30, SD logging and display, on the same wire protocol |
 
 ---
 
