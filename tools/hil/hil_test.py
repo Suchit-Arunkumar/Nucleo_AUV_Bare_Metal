@@ -651,7 +651,7 @@ def test_mpu(link: Link) -> Result:
     r.ok(int(k["i2cerr"]) == 0, f"{k['i2cerr']} bus errors (NACK or timeout)")
     r.ok(int(k["stale"]) == 0, f"{k['stale']} stale bytes left in DR by a previous read")
     t14 = int(k["t14"])
-    r.ok(1500 < t14 < 4000, f"slowest 14-byte burst {t14} us (100 kHz floor ~1.7 ms: CCR = 225 is right)")
+    r.ok(1500 < t14 < 4000, f"slowest 14-byte burst {t14} us (~1.55 ms computed for 100 kHz: CCR = 225 is right)")
     return r
 
 
@@ -661,6 +661,7 @@ def test_pwm(link: Link, interactive: bool) -> Result:
     if not interactive:
         return r.skip("--no-pwm")
     link.bench(b"BENCH:SIG1")
+    measured = 0
     try:
         for ch, (pin, where) in enumerate(PWM_PINS):
             exp = 1100 + 100 * ch
@@ -669,6 +670,7 @@ def test_pwm(link: Link, interactive: bool) -> Result:
             if input().strip().lower() == "s":
                 r.note(f"T{ch + 1} {pin}: skipped by operator")
                 continue
+            measured += 1
             line = latest(link, "pwm ", time.monotonic(), 3, count=2)   # first window spans the move
             if not r.ok(line is not None, f"T{ch + 1} {pin}: capture line"):
                 continue
@@ -683,6 +685,9 @@ def test_pwm(link: Link, interactive: bool) -> Result:
             r.ok(abs(plo - 20000) <= 1 and abs(phi - 20000) <= 1, f"T{ch + 1} {pin}: period {plo}..{phi} us")
     finally:
         link.bench(b"BENCH:SIG0")
+    if measured == 0:
+        # Every pin skipped: nothing was measured, so this is not a pass.
+        return r.skip("all eight pins skipped by the operator")
     line = latest(link, "pwm ", time.monotonic(), 6, count=2)
     if line:
         k = kv(line)

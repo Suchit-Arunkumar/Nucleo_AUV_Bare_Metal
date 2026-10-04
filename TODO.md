@@ -6,34 +6,27 @@ the commit history, not here.
 
 ## Verification gaps
 
-- **Not yet run on hardware.** Every timing constant — `I2C1->CR2 = 45`,
-  `CCR = 225`, `TRISE = 46`, PWM `PSC = 89` on TIM3/TIM4/TIM12,
-  `TIM7->PSC = 1799`, the USART `BRR` values — assumes the 180 MHz clock tree
-  that `ba3acde` made correct. `tools/hil/hil_test.py` checks the clock rate,
-  boot, the link, the parser and the failsafe on a bare Nucleo. Out of its reach:
-  PWM waveforms (needs a scope), USART1 on PA9/PA10 (needs a USB-serial adapter
-  or a Pi), and SD, Bar30 and OLED (need the parts).
-- **The emulated register-level harnesses are not in the repository.**
-  Protocol framing (byte-compared against pico-protocol), PWM register setup,
-  pin ownership after boot, I2C timeouts, the ring buffer, the USART2 link and
-  SD block packing were run on an emulated Cortex-M4 against simulated
-  peripheral registers during development. The HIL script and its host
-  simulator are committed; these harnesses are not.
+Run on hardware 2026-10-04 (14 / 14 HIL tests, reports in
+`tools/hil/reports/`). What that run could not reach:
+
+- **USART1 with DMA on PA9/PA10**, the vehicle's Pi link. The HIL link runs over
+  USART2. Testing it needs a jumper from PA9 to PA10 and a loopback mode, as the
+  FreeRTOS tree has, or a USB-serial adapter.
+- **SD card, OLED and Bar30**: not fitted. SD block packing is verified only
+  against a simulated card.
+- **Anything with ESCs or thrusters attached.**
+- **The emulated register-level harnesses are not in the repository.** Protocol
+  framing, PWM register setup, pin ownership, I2C timeouts, the ring buffer and
+  SD block packing were checked on an emulated Cortex-M4 during development.
+  The HIL script and its host simulator are committed; these harnesses are not.
 - **The HIL simulator mirrors `main.c` by hand.** `tools/hil/sim/nucleo_sim.c`
   compiles the real protocol and control-loop sources, but its main loop is a
   copy of `main.c`'s and has to be kept in step with it.
-- **Warning counts are from arm-none-eabi-gcc 13.2.1,** not the pinned
+- **Warning counts and sizes are from arm-none-eabi-gcc 13.2.1,** not the pinned
   11.3.1 toolchain.
-- **Main-loop iteration time unmeasured.** The IWDG kick interval is designed
-  against a 341 ms fast-extreme timeout, but worst-case loop period has never
-  been instrumented. Known contributors: one blocking SD block write about four
-  times a second (`sd_write_block()` can poll busy up to 100,000 times), and the
-  blocking 62-byte telemetry send, about 5.4 ms every tick.
-  *Experiment:* enable DWT CYCCNT (PM0214), sample it at the top of each
-  main-loop iteration, accumulate min/max/mean over 1000 iterations, convert
-  at 180 MHz. PB10 gives the TIM7 tick on a scope for the ISR side.
-- **Peak stack usage unmeasured.** No stack painting. The linker reserves
-  1,024 bytes of stack; the actual high-water mark is unknown.
+
+Measured, no longer open: worst main-loop pass (17.77 ms against a 341 ms
+watchdog floor) and peak stack use (872 B).
 
 ## Configuration risks
 
@@ -46,9 +39,20 @@ the commit history, not here.
   `systick_init()`, but the pins are floating inputs through
   `system_clock_init()`. External pull-downs on the eight ESC signal lines
   would close that window.
-- **The default build puts the Pi link on USART2** (ST-LINK USB) for bench
-  testing. The vehicle needs `-DLINK_PORT_STLINK=0`; forgetting it leaves the
-  Pi's UART silent.
+- **The default build is the bench build.** It puts the Pi link on USART2
+  (ST-LINK USB) and compiles the `BENCH_HIL` hooks, which can drive the ESCs off
+  neutral and stop the watchdog refresh on command. The vehicle needs
+  `-DLINK_PORT_STLINK=0 -DBENCH_HIL=0`; forgetting the first leaves the Pi's
+  UART silent, forgetting the second leaves test hooks on a live vehicle.
+- **The linker stack reservation is 1,024 B and the measured peak is 872 B**
+  (85 %). The stack can grow below the reservation into free RAM, so nothing
+  overflows today, but the linker would no longer catch the heap and stack
+  meeting. Raise `_Min_Stack_Size` to `0x800`. The deepest path is most likely
+  newlib-nano `printf`.
+- **Blocking console output sets the worst main-loop pass.** 17.77 ms measured,
+  mostly the 62-byte telemetry frame (5.29 ms) plus status lines at 115,200
+  baud in the same pass. Harmless against the watchdog; a DMA TX path would
+  remove it.
 
 ## Open defects
 
@@ -69,8 +73,12 @@ Link to the Pi:
 I2C:
 
 - **`i2c_read()` uses one sequence for every length.** RM0390 gives different
-  ACK/POS/BTF handling for 1-, 2- and 3+-byte master receives. The Bar30 PROM
-  reads are 2 bytes. This has not been exercised against a real sensor.
+  ACK/POS/BTF handling for 1-, 2- and 3+-byte master receives. Against an
+  MPU-6050 it completed 748 reads of 1, 2, 6 and 14 bytes with 0 errors and 0
+  stale bytes, but with only the 45 µs TIM7 ISR able to interrupt it. A longer
+  interruption at the wrong byte would ACK one byte too many. The FreeRTOS tree
+  carries `i2c_read_rm()` with the RM0390 sequences; port it if the I2C code is
+  ever called with longer-running interrupts enabled.
 - **`bar30_read()` ignores transfer errors.** `bar30_init()` now checks them,
   but `bar30_read()`, which is never called yet, would compute a depth from a
   failed read.
@@ -98,7 +106,8 @@ Dead code:
   has no callers.
 - **DAC1:** `Drivers/dac/` has no callers. Removing the folder also needs its
   include path removed from `.cproject`.
-- **`micros()`** (TIM2) and **`uart1_write_byte()`** have no callers.
+- **`uart1_write_byte()`** has no callers. (`micros()` is now used by the
+  bench build's MPU timing.)
 - **`Protocol/struct.c`** is a zero-byte file that is compiled and linked.
 - **`B_forward`** is defined and never referenced.
 

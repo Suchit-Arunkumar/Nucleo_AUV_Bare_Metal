@@ -1,15 +1,23 @@
 # Hardware-in-the-loop test
 
-`hil_test.py` runs the firmware on a real NUCLEO-F446RE with **nothing attached
-to the board**. A laptop stands in for the Raspberry Pi. It talks to the board over
-the same USB cable used for flashing, sends the Pi's 62-byte command frames, and
-checks everything the board sends back.
+`hil_test.py` runs the firmware on a real NUCLEO-F446RE. A laptop stands in for
+the Raspberry Pi: it talks to the board over the same USB cable used for
+flashing, sends the Pi's 62-byte command frames, and checks everything the board
+sends back. With the `BENCH_HIL` build (the default) the board also measures
+itself, with the DWT cycle counter and TIM2 input capture, and reports the
+numbers on its console.
 
-Everything it checks runs on the actual silicon: the clock tree, the boot sequence,
-the TIM7 tick, UART receive and transmit, the ring buffer, the frame parser and
-CRC-16, the control loop's arm and failsafe logic, and the telemetry path. It
-doesn't check anything that needs hardware attached: PWM waveforms (use a scope),
-the SD card, the Bar30, the OLED, or USART1 on PA9/PA10.
+Last run: **14 / 14 pass**, 2026-10-04, reports in [`reports/`](reports/).
+
+**Wiring.** Only the USB cable is required. Two optional additions unlock two
+more tests; each test SKIPs without its wiring.
+
+| Part | Connection | Test it enables |
+|---|---|---|
+| MPU-6050 (GY-521 / HW-123 board) | VCC → 3V3, GND → GND, SCL → D15 (PB8), SDA → D14 (PB9) | I2C driver against a real slave |
+| One jumper wire | PA15 (CN7 pin 17) → each ESC pin in turn, when prompted | Eight PWM outputs |
+
+Out of reach: the SD card, the Bar30, the OLED, and USART1 on PA9/PA10.
 
 ## How the link reaches the laptop
 
@@ -43,10 +51,16 @@ anything that isn't a valid frame is treated as text.
 4. When prompted, press the black **RESET** button (B2) so the script can watch
    the board boot. Use `--no-reset` to skip that test.
 
-The whole run takes about 2 minutes, including a 60 s soak (`--soak N` to change
-it, `--soak 0` to skip). The script exits with 0 only if every test passes, and it
-writes `tools/hil/hil_report.md`: a table you can paste into the main README as
-hardware evidence.
+5. When prompted, move the PA15 jumper to each of the eight ESC pins and press
+   Enter (`s` skips a pin; `--no-pwm` skips the test). The watchdog test then
+   resets the board three times on its own (`--no-iwdg` skips it).
+
+A run takes about 6 minutes, including a 60 s soak (`--soak N` to change it,
+`--soak 0` to skip). If boot never reaches the main loop, the script stops after
+the first test and prints the last console lines instead of failing every test
+for the same reason. It exits with 0 only if every test passes, and writes
+`tools/hil/hil_report.md`; reports from runs worth keeping go in `reports/`,
+named by date and firmware commit.
 
 ## What each test shows
 
@@ -61,6 +75,11 @@ hardware evidence.
 | Corrupted frames rejected | Frames with a damaged CRC are never used, and the link times out as if they weren't there |
 | Command-timeout failsafe | When commands stop, the board disarms and drops the link roughly 500 ms later, measured over three runs |
 | Soak | Sustained 50 Hz traffic both ways with no CRC errors, no ring-buffer drops (the board's `rxdrop` counter), no link drops and no resets |
+| Timing | TIM7 period and jitter, control ISR duration, worst main-loop pass against the watchdog's 341 ms floor, and the USART2 baud rate from the time one frame takes to send, all from the DWT cycle counter |
+| Stack | The painted stack's high-water mark is below the linker's reservation |
+| I2C vs MPU-6050 | `PWR_MGMT_1` reads back 0x00 after the wake write; 1-, 2-, 6- and 14-byte reads every 500 ms with no implausible values, bus errors or stale bytes; 14-byte read time matches 100 kHz |
+| Eight PWM outputs | With channel *k* driven at 1,100 + 100*k* µs, each pin shows its own width and a 20,000 µs period, measured by TIM2_CH1 capture on PA15 |
+| Watchdog | `BENCH:HANG` stops the main loop with TIM7 still running; the board resets inside the LSI window (341–943 ms) and reports `IWDG` as the cause, three times |
 
 ## Developing without a board: the simulator
 
