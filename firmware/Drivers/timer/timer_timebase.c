@@ -13,7 +13,14 @@ void timer2_timebase_init(void)
 	TIM2->ARR &= ~(0xFFFFFFFFU);
 	TIM2->ARR |= (0xFFFFFFFFU);
 
-    // 4. Set CR1 - clear counter direction (up), set CEN to start counter
+    // 4. Load PSC now. PSC is preloaded: a written value only takes effect at
+    //    the next update event, and with ARR = 0xFFFFFFFF counting at 90 MHz
+    //    that is 47.7 s away. Until then micros() ran 90x fast. UG forces
+    //    the update immediately (and zeroes CNT). Found on the first
+    //    hardware run; the FreeRTOS tree had already fixed the same line.
+	TIM2->EGR = TIM_EGR_UG;
+
+    // 5. Set CR1 - clear counter direction (up), set CEN to start counter
 	TIM2->CR1 |= TIM_CR1_CEN;
 
 

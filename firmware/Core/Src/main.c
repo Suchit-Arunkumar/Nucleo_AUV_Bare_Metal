@@ -128,8 +128,15 @@ int main(void)
     // 17. Start 50 Hz control loop timer ISR
     tim7_init();
 
+    // Breadcrumb: timers and control loop are up. If boot stops between this
+    // line and BOOT DONE, the watchdog init is the culprit.
+    printf("TIMERS OK\r\n");
+
     // 18. Arm watchdog LAST
-    iwdg_init();
+    if (iwdg_init() != 0)
+    {
+        printf("IWDG CONFIG TIMEOUT\r\n");   // running, but PR/RLR may not have latched
+    }
     printf("BOOT DONE\r\n");
 
     while (1)
