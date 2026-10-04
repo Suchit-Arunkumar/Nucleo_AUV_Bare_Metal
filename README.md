@@ -8,10 +8,11 @@ Raspberry Pi, SPI SD logging, an I2C pressure sensor, an SPI OLED, a 50 Hz
 `Drivers/`, `Devices/` and `Protocol/` is a direct register write traceable to
 RM0390, PM0214 or DS10693.
 
-**Verified on silicon** with a hardware-in-the-loop harness that needs only the
-Nucleo, its USB cable, an MPU-6050 and one jumper wire. On a real board,
-14 of 14 automated tests pass. The bring-up found three defects that no
-amount of compiling had shown ([below](#defects-found-on-hardware)).
+**Verified on a NUCLEO-F446RE**: 14 of 14 hardware-in-the-loop tests pass, with
+0.34 µs worst control-tick jitter and 0 CRC errors over a 60 s, 50 Hz soak.
+Bring-up found three defects that compiling never showed. Measured results are in
+[Key figures](#key-figures) and
+[Hardware-in-the-loop verification](#hardware-in-the-loop-verification).
 
 Built as groundwork for Team Tiburon's AUV (SAUVC 2026). **It has never been
 deployed on the vehicle**, which runs separate RP2350 firmware. It is a driver
@@ -20,71 +21,26 @@ wherever that matters.
 
 ---
 
-## Key figures
-
-Every number below is either measured on an NUCLEO-F446RE by
-[`tools/hil/hil_test.py`](tools/hil/), with the report committed in
-[`tools/hil/reports/`](tools/hil/reports/), or read from a build output. The
-source column says which.
-
-| | Figure | Source |
-|---|---|---|
-| **Scope** | | |
-| Hand-written firmware | ~3,100 non-blank lines of C, no HAL/LL (ST startup and `system_stm32f4xx.c` excluded) | `wc` |
-| Peripherals driven at register level | 17 blocks: RCC, PWR, FLASH, GPIO, USART1, USART2, DMA2, SPI1, I2C1, TIM2, TIM3, TIM4, TIM7, TIM12, IWDG, CRC, ADC1; plus SysTick, NVIC and DWT in the core | source |
-| Thruster outputs | 8 PWM channels on 3 timers (TIM3, TIM4, TIM12), 1 µs resolution, 50 Hz | source |
-| Wire protocol | 62-byte frames, CRC-16/IBM-3740, byte-identical to the vehicle's RP2350 firmware | off-target test |
-| Defects found and fixed, each with root cause and commit | 28 (3 of them found on hardware) | [Engineering log](#engineering-log) |
-| Test harness | 14 automated HIL tests, ~6 min per run; host simulator for development without a board | `tools/hil/` |
-| **Timing, measured on silicon** | | |
-| Control-tick period (TIM7, 50 Hz) | 19,999.66–20,000.32 µs over the whole run: worst 0.34 µs off nominal (17 ppm) | DWT, report `c24f106` |
-| Control ISR (PID + 6×8 allocation + 8 PWM writes) | 8.3 µs average, 45.6 µs worst: 0.23 % of the 20 ms tick | DWT, report `c24f106` |
-| Main-loop pass | 4 µs average, 17.77 ms worst: 19× inside the watchdog's 341 ms shortest timeout | DWT, report `c24f106` |
-| UART baud rate | 62-byte frame sent in 5.292 ms vs 5.295 ms theoretical at 115,200 baud (−0.06 %) | DWT, report `c24f106` |
-| System clock vs host clock | within 0.22 % over 9.5 s (limit 1 %; USB timestamp jitter dominates) | report `c24f106` |
-| **Link and failsafe, measured on silicon** | | |
-| Soak, 60 s at 50 Hz both ways | 3,002 frames, 0 CRC errors, 0 dropped bytes, 0 link drops, 0 resets | report `c24f106` |
-| Data integrity | 3,002 / 3,002 random float32 values returned bit-exact | report `c24f106` |
-| Parser robustness | 146 / 146 frames recovered through random junk, decoy headers and split writes | report `c24f106` |
-| Command-timeout failsafe (500 ms) | 3 / 3 runs disarmed; 535–542 ms host-measured incl. USB latency | report `c24f106` |
-| Corrupted-frame rejection | 0 bad-CRC values ever acted on; link dropped 528 ms after the last good frame | report `c24f106` |
-| Host → board → host round trip | 38 ms median, 53 ms p95 (Windows USB-serial latency included) | report `c24f106` |
-| **Outputs and peripherals, measured on silicon** | | |
-| PWM outputs | 8 / 8 pins carry their own channel; 200 pulses captured, 0 µs error at 1 µs resolution; 20,000 µs period on every pin | TIM2 capture, report `1c32d43` |
-| I2C against a real slave (MPU-6050) | 748 transfers (1, 2, 6 and 14 bytes), 0 errors, 0 bus errors; 1.047 g at rest, 32.3 °C | report `c24f106` |
-| I2C bus rate | 14-byte burst read in 1,572 µs vs ~1,550 µs computed for 100 kHz | report `c24f106` |
-| Watchdog | 6 / 6 deliberate main-loop hangs reset in 561–563 ms; reset cause read back as IWDG | reports `1c32d43`, `c24f106` |
-| This chip's LSI oscillator | ≈ 28.5 kHz, derived from the watchdog timeout (datasheet range 17–47 kHz) | report `c24f106` |
-| Boot to main loop, nothing attached | 62–95 ms, SD and Bar30 absence handled without hanging | reports |
-| **Memory** | | |
-| Flash, vehicle build | 16,472 B, 3.1 % of 512 KiB | `arm-none-eabi-size` |
-| Flash, bench build (with test hooks) | 20,192 B, 3.9 % | `arm-none-eabi-size` |
-| Static RAM, vehicle build | 4,384 B, 3.3 % of 128 KiB | `arm-none-eabi-size` |
-| Stack high-water mark | 872 B peak (painted MSP), against a 1,024 B linker reservation | report `c24f106` |
-| SD write amplification | 1 block write per 12 log records: 250 writes for 3,000 records, vs 3,000 before | off-target test |
-| Compiler warnings at `-O2` | 2, both marking known gaps ([TODO.md](TODO.md)) | build |
-
----
-
 ## Contents
 
 1. [Status](#status)
 2. [System overview](#system-overview)
-3. [Hardware-in-the-loop verification](#hardware-in-the-loop-verification)
-4. [Pin map](#pin-map)
-5. [Boot sequence](#boot-sequence)
-6. [Clock tree](#clock-tree)
-7. [Timing and interrupts](#timing-and-interrupts)
-8. [Thruster PWM](#thruster-pwm)
-9. [Serial link to the Pi](#serial-link-to-the-pi)
-10. [Control loop](#control-loop)
-11. [SD card logging](#sd-card-logging)
-12. [Independent watchdog](#independent-watchdog)
-13. [Engineering log](#engineering-log)
-14. [Off-target verification](#off-target-verification)
-15. [Build](#build)
-16. [Repository layout](#repository-layout)
-17. [References](#references)
+3. [Pin map](#pin-map)
+4. [Boot sequence](#boot-sequence)
+5. [Clock tree](#clock-tree)
+6. [Timing and interrupts](#timing-and-interrupts)
+7. [Thruster PWM](#thruster-pwm)
+8. [Serial link to the Pi](#serial-link-to-the-pi)
+9. [Control loop](#control-loop)
+10. [SD card logging](#sd-card-logging)
+11. [Independent watchdog](#independent-watchdog)
+12. [Hardware-in-the-loop verification](#hardware-in-the-loop-verification)
+13. [Key figures](#key-figures)
+14. [Engineering log](#engineering-log)
+15. [Off-target verification](#off-target-verification)
+16. [Build](#build)
+17. [Repository layout](#repository-layout)
+18. [References](#references)
 
 Open issues are listed in [TODO.md](TODO.md).
 
@@ -129,80 +85,6 @@ thruster geometry matrix, then slew-limited PWM writes to eight channels. The
 main loop parses incoming frames from the Pi, sends one telemetry frame, builds
 and writes a log record, services the logger's flush timer, and kicks the
 watchdog.
-
----
-
-## Hardware-in-the-loop verification
-
-### The rig
-
-```
-  Laptop (plays the Pi)                    NUCLEO-F446RE
-  ┌────────────────────┐   ST-LINK USB    ┌──────────────────────────────────────┐
-  │ hil_test.py        │◄────────────────►│ USART2: console + 62-byte frames     │
-  │  sends CMD frames  │   one cable:     │ TIM2_CH1 capture on PA15 ◄── jumper ─┼─► any ESC pin
-  │  checks telemetry  │   flash, power,  │ I2C1 PB8/PB9 ◄──────────────────────►│ MPU-6050
-  │  writes a report   │   serial         │ DWT cycle counter: timing            │
-  └────────────────────┘                  └──────────────────────────────────────┘
-```
-
-No Raspberry Pi, scope, logic analyser or USB-serial adapter. The laptop sends
-the same command frames the Pi would. The board measures itself: the DWT
-cycle counter times the ISR and the main loop at 5.6 ns resolution, and
-TIM2 input capture on PA15 measures any ESC output at 1 µs resolution. The
-`BENCH_HIL` build flag carries this instrumentation; `-DBENCH_HIL=0` removes it
-for the vehicle.
-
-### Results
-
-Firmware `c24f106` unless noted, 2026-10-04. Full reports:
-[`c24f106`](tools/hil/reports/2026-10-04_c24f106.md) (final firmware),
-[`1c32d43`](tools/hil/reports/2026-10-04_1c32d43.md) (PWM pin sweep; same PWM
-code). Host-measured times include Windows USB-serial latency.
-
-| Test | Result | Measured |
-|---|---|---|
-| Boot with nothing attached | PASS | `BOOT DONE` 95 ms after `BOOT OK`; SD and Bar30 absence reported, not hung; reset cause `PIN` |
-| Clock rate | PASS | board 9,500 ms vs laptop 9,521 ms (−0.22 %, limit ±1 %); status lines exactly 500 ms apart |
-| Telemetry, link idle | PASS | 249 frames in 5 s (49.8 Hz), 0 bad CRC; disarmed, link down, all ESCs at 1,500 µs |
-| Command round trip | PASS | link up 44 ms after the first command; 150 / 150 values exact; 38 ms median, 55 ms max |
-| Arm flag | PASS | armed in 50 / 50 frames while commanded; ESCs stay at 1,500 µs (gains are zero) |
-| Junk and split frames | PASS | 146 / 146 frames recovered, 0 values never sent |
-| Corrupted frames | PASS | 0 bad-CRC values used; link dropped 528 ms after the last good frame |
-| Command-timeout failsafe | PASS | 3 / 3 runs: disarmed at 542, 537, 535 ms |
-| Soak, 60 s both ways | PASS | 3,002 frames at 50.03 Hz; 0 CRC errors, 0 ring-buffer drops, 0 link drops, 0 resets |
-| Timing | PASS | tick 19,999.66–20,000.32 µs; ISR 8.3 µs avg / 45.6 µs max; main loop 17.77 ms worst; TX 5.292 ms |
-| Stack | PASS | 872 B peak of 1,024 B reserved |
-| I2C vs MPU-6050 | PASS | `PWR_MGMT_1` = 0x00 after wake; 187 cycles × 4 reads, 0 errors; 14-byte read 1,572 µs |
-| Eight PWM outputs | PASS (`1c32d43`) | T1–T8 at 1,100–1,800 µs exactly, 25 pulses each; period 20,000 µs on all 8 |
-| Watchdog | PASS | 3 / 3 hangs reset in 563, 562, 563 ms; reset cause `IWDG PIN`; LSI ≈ 28.5 kHz |
-
-The PWM test drives channel *k* at 1,100 + 100*k* µs, so a pin carrying the
-wrong channel fails. It checks the routing, not only that a pulse exists. The
-watchdog test stops the main loop while TIM7 keeps running the control loop,
-which shows that a live timer interrupt does not keep the watchdog fed.
-
-### Defects found on hardware
-
-Three defects were found on the first two runs, each in code that had compiled
-cleanly and passed every off-target check. The first run failed 13 of 14 tests;
-the next two runs were 13 / 14 and 14 / 14.
-
-| Defect | How it showed | Root cause | Fix |
-|---|---|---|---|
-| Boot hung in `iwdg_init()` | Console stopped after `LINK`, on every reset, with no watchdog reset | PR written, then an unbounded spin on `SR.PVU` *before* the watchdog was started; the update never completed | ST's order: start, unlock, write PR/RLR, bounded wait, reload. `1c32d43` |
-| TIM2 prescaler never loaded | Found while bringing up the capture; would have made every capture and `micros()` reading 90× fast | PSC is preloaded and only latches on an update event, 2³² counts (47.7 s) away | `EGR.UG` after writing PSC. `1c32d43` |
-| `i2c_write()` dropped the last byte of multi-byte writes | MPU-6050 test: exactly 2 implausible values per cycle over 187 cycles, 0 bus errors | STOP set right after the last byte entered DR, without waiting for BTF; the wake command `{0x6B, 0x00}` lost its `0x00` and the sensor stayed asleep | Wait for BTF before STOP; `PWR_MGMT_1` read back to prove it. `c24f106` |
-
-### Running it
-
-```
-pip install pyserial
-python tools/hil/hil_test.py          # press RESET when prompted; move the PA15 jumper 8 times
-```
-
-Wiring, test descriptions and the host simulator are in
-[`tools/hil/README.md`](tools/hil/README.md).
 
 ---
 
@@ -592,6 +474,126 @@ bounded at 50 ms → `KR = 0xAAAA` (reload). The previous order wrote PR and spu
 on PVU before starting the watchdog, and on hardware PVU never cleared: boot
 hung forever with nothing to reset it. That was the first defect the HIL run
 found.
+
+---
+
+## Hardware-in-the-loop verification
+
+### The rig
+
+```
+  Laptop (plays the Pi)                    NUCLEO-F446RE
+  ┌────────────────────┐   ST-LINK USB    ┌──────────────────────────────────────┐
+  │ hil_test.py        │◄────────────────►│ USART2: console + 62-byte frames     │
+  │  sends CMD frames  │   one cable:     │ TIM2_CH1 capture on PA15 ◄── jumper ─┼─► any ESC pin
+  │  checks telemetry  │   flash, power,  │ I2C1 PB8/PB9 ◄──────────────────────►│ MPU-6050
+  │  writes a report   │   serial         │ DWT cycle counter: timing            │
+  └────────────────────┘                  └──────────────────────────────────────┘
+```
+
+No Raspberry Pi, scope, logic analyser or USB-serial adapter. The laptop sends
+the same command frames the Pi would. The board measures itself: the DWT
+cycle counter times the ISR and the main loop at 5.6 ns resolution, and
+TIM2 input capture on PA15 measures any ESC output at 1 µs resolution. The
+`BENCH_HIL` build flag carries this instrumentation; `-DBENCH_HIL=0` removes it
+for the vehicle.
+
+### Results
+
+Firmware `c24f106` unless noted, 2026-10-04. Full reports:
+[`c24f106`](tools/hil/reports/2026-10-04_c24f106.md) (final firmware),
+[`1c32d43`](tools/hil/reports/2026-10-04_1c32d43.md) (PWM pin sweep; same PWM
+code). Host-measured times include Windows USB-serial latency.
+
+| Test | Result | Measured |
+|---|---|---|
+| Boot with nothing attached | PASS | `BOOT DONE` 95 ms after `BOOT OK`; SD and Bar30 absence reported, not hung; reset cause `PIN` |
+| Clock rate | PASS | board 9,500 ms vs laptop 9,521 ms (−0.22 %, limit ±1 %); status lines exactly 500 ms apart |
+| Telemetry, link idle | PASS | 249 frames in 5 s (49.8 Hz), 0 bad CRC; disarmed, link down, all ESCs at 1,500 µs |
+| Command round trip | PASS | link up 44 ms after the first command; 150 / 150 values exact; 38 ms median, 55 ms max |
+| Arm flag | PASS | armed in 50 / 50 frames while commanded; ESCs stay at 1,500 µs (gains are zero) |
+| Junk and split frames | PASS | 146 / 146 frames recovered, 0 values never sent |
+| Corrupted frames | PASS | 0 bad-CRC values used; link dropped 528 ms after the last good frame |
+| Command-timeout failsafe | PASS | 3 / 3 runs: disarmed at 542, 537, 535 ms |
+| Soak, 60 s both ways | PASS | 3,002 frames at 50.03 Hz; 0 CRC errors, 0 ring-buffer drops, 0 link drops, 0 resets |
+| Timing | PASS | tick 19,999.66–20,000.32 µs; ISR 8.3 µs avg / 45.6 µs max; main loop 17.77 ms worst; TX 5.292 ms |
+| Stack | PASS | 872 B peak of 1,024 B reserved |
+| I2C vs MPU-6050 | PASS | `PWR_MGMT_1` = 0x00 after wake; 187 cycles × 4 reads, 0 errors; 14-byte read 1,572 µs |
+| Eight PWM outputs | PASS (`1c32d43`) | T1–T8 at 1,100–1,800 µs exactly, 25 pulses each; period 20,000 µs on all 8 |
+| Watchdog | PASS | 3 / 3 hangs reset in 563, 562, 563 ms; reset cause `IWDG PIN`; LSI ≈ 28.5 kHz |
+
+The PWM test drives channel *k* at 1,100 + 100*k* µs, so a pin carrying the
+wrong channel fails. It checks the routing, not only that a pulse exists. The
+watchdog test stops the main loop while TIM7 keeps running the control loop,
+which shows that a live timer interrupt does not keep the watchdog fed.
+
+### Defects found on hardware
+
+Three defects were found on the first two runs, each in code that had compiled
+cleanly and passed every off-target check. The first run failed 13 of 14 tests;
+the next two runs were 13 / 14 and 14 / 14.
+
+| Defect | How it showed | Root cause | Fix |
+|---|---|---|---|
+| Boot hung in `iwdg_init()` | Console stopped after `LINK`, on every reset, with no watchdog reset | PR written, then an unbounded spin on `SR.PVU` *before* the watchdog was started; the update never completed | ST's order: start, unlock, write PR/RLR, bounded wait, reload. `1c32d43` |
+| TIM2 prescaler never loaded | Found while bringing up the capture; would have made every capture and `micros()` reading 90× fast | PSC is preloaded and only latches on an update event, 2³² counts (47.7 s) away | `EGR.UG` after writing PSC. `1c32d43` |
+| `i2c_write()` dropped the last byte of multi-byte writes | MPU-6050 test: exactly 2 implausible values per cycle over 187 cycles, 0 bus errors | STOP set right after the last byte entered DR, without waiting for BTF; the wake command `{0x6B, 0x00}` lost its `0x00` and the sensor stayed asleep | Wait for BTF before STOP; `PWR_MGMT_1` read back to prove it. `c24f106` |
+
+### Running it
+
+```
+pip install pyserial
+python tools/hil/hil_test.py          # press RESET when prompted; move the PA15 jumper 8 times
+```
+
+Wiring, test descriptions and the host simulator are in
+[`tools/hil/README.md`](tools/hil/README.md).
+
+---
+
+## Key figures
+
+Every number below is either measured on a NUCLEO-F446RE by
+[`tools/hil/hil_test.py`](tools/hil/), with the report committed in
+[`tools/hil/reports/`](tools/hil/reports/), or read from a build output. The
+source column says which.
+
+| | Figure | Source |
+|---|---|---|
+| **Scope** | | |
+| Hand-written firmware | ~3,100 non-blank lines of C, no HAL/LL (ST startup and `system_stm32f4xx.c` excluded) | `wc` |
+| Peripherals driven at register level | 17 blocks: RCC, PWR, FLASH, GPIO, USART1, USART2, DMA2, SPI1, I2C1, TIM2, TIM3, TIM4, TIM7, TIM12, IWDG, CRC, ADC1; plus SysTick, NVIC and DWT in the core | source |
+| Thruster outputs | 8 PWM channels on 3 timers (TIM3, TIM4, TIM12), 1 µs resolution, 50 Hz | source |
+| Wire protocol | 62-byte frames, CRC-16/IBM-3740, byte-identical to the vehicle's RP2350 firmware | off-target test |
+| Defects found and fixed, each with root cause and commit | 28 (3 of them found on hardware) | [Engineering log](#engineering-log) |
+| Test harness | 14 automated HIL tests, ~6 min per run; host simulator for development without a board | `tools/hil/` |
+| **Timing, measured on silicon** | | |
+| Control-tick period (TIM7, 50 Hz) | 19,999.66–20,000.32 µs over the whole run: worst 0.34 µs off nominal (17 ppm) | DWT, report `c24f106` |
+| Control ISR (PID + 6×8 allocation + 8 PWM writes) | 8.3 µs average, 45.6 µs worst: 0.23 % of the 20 ms tick | DWT, report `c24f106` |
+| Main-loop pass | 4 µs average, 17.77 ms worst: 19× inside the watchdog's 341 ms shortest timeout | DWT, report `c24f106` |
+| UART baud rate | 62-byte frame sent in 5.292 ms vs 5.295 ms theoretical at 115,200 baud (−0.06 %) | DWT, report `c24f106` |
+| System clock vs host clock | within 0.22 % over 9.5 s (limit 1 %; USB timestamp jitter dominates) | report `c24f106` |
+| **Link and failsafe, measured on silicon** | | |
+| Soak, 60 s at 50 Hz both ways | 3,002 frames, 0 CRC errors, 0 dropped bytes, 0 link drops, 0 resets | report `c24f106` |
+| Data integrity | 3,002 / 3,002 random float32 values returned bit-exact | report `c24f106` |
+| Parser robustness | 146 / 146 frames recovered through random junk, decoy headers and split writes | report `c24f106` |
+| Command-timeout failsafe (500 ms) | 3 / 3 runs disarmed; 535–542 ms host-measured incl. USB latency | report `c24f106` |
+| Corrupted-frame rejection | 0 bad-CRC values ever acted on; link dropped 528 ms after the last good frame | report `c24f106` |
+| Host → board → host round trip | 38 ms median, 53 ms p95 (Windows USB-serial latency included) | report `c24f106` |
+| **Outputs and peripherals, measured on silicon** | | |
+| PWM outputs | 8 / 8 pins carry their own channel; 200 pulses captured, 0 µs error at 1 µs resolution; 20,000 µs period on every pin | TIM2 capture, report `1c32d43` |
+| I2C against a real slave (MPU-6050) | 748 transfers (1, 2, 6 and 14 bytes), 0 errors, 0 bus errors; 1.047 g at rest, 32.3 °C | report `c24f106` |
+| I2C bus rate | 14-byte burst read in 1,572 µs vs ~1,550 µs computed for 100 kHz | report `c24f106` |
+| Watchdog | 6 / 6 deliberate main-loop hangs reset in 561–563 ms; reset cause read back as IWDG | reports `1c32d43`, `c24f106` |
+| This chip's LSI oscillator | ≈ 28.5 kHz, derived from the watchdog timeout (datasheet range 17–47 kHz) | report `c24f106` |
+| Boot to main loop, nothing attached | 62–95 ms, SD and Bar30 absence handled without hanging | reports |
+| **Memory** | | |
+| Flash, vehicle build | 16,472 B, 3.1 % of 512 KiB | `arm-none-eabi-size` |
+| Flash, bench build (with test hooks) | 20,192 B, 3.9 % | `arm-none-eabi-size` |
+| Static RAM, vehicle build | 4,384 B, 3.3 % of 128 KiB | `arm-none-eabi-size` |
+| Stack high-water mark | 872 B peak (painted MSP), against a 1,024 B linker reservation | report `c24f106` |
+| SD write amplification | 1 block write per 12 log records: 250 writes for 3,000 records, vs 3,000 before | off-target test |
+| Compiler warnings at `-O2` | 2, both marking known gaps ([TODO.md](TODO.md)) | build |
 
 ---
 
