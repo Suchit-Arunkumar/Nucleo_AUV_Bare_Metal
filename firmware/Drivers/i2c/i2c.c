@@ -120,7 +120,15 @@ int i2c_write(uint8_t addr, const uint8_t *data, uint8_t len)
 		I2C1->DR = data[i];
 	}
 
-	// 5. STOP
+	// 5. wait for BTF, then STOP. With the last byte just written to DR,
+	//    the byte before it is still in the shift register; a STOP set now
+	//    ends the transfer after that byte and the last one is never sent
+	//    (RM0390 master transmitter, EV8_2: STOP only once TxE and BTF are
+	//    both set). Single-byte writes got away with it, because their byte
+	//    leaves DR for the shift register at once. The MPU-6050 wake
+	//    command {0x6B, 0x00} lost its 0x00 on the first hardware run, and
+	//    the sensor stayed asleep reading zero.
+	if (i2c_wait_sr1(I2C_SR1_BTF)) return i2c_abort();
 	I2C1->CR1 |= I2C_CR1_STOP;
 	return 0;
 }

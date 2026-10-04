@@ -636,7 +636,17 @@ def test_mpu(link: Link) -> Result:
         return r.skip("no MPU-6050")
     k = kv(line)
     n = int(k["n"])
+    boot = next((ln for _, ln in link.lines_since(0) if ln.startswith("MPU 0x")), "")
+    if "pwr=" in boot:
+        pwr = int(boot.split("pwr=")[1].split()[0], 16)
+        r.ok(not (pwr & 0x40), f"PWR_MGMT_1 read back 0x{pwr:02X} after the wake write "
+                               "(0x40 = still asleep: the write's data byte never arrived)")
     r.ok(n >= 10, f"{n} read cycles (4 transfers each) since boot, WHO_AM_I {k['who']}")
+    if "ax" in k:
+        ax, ay, az, t = (int(k[x]) for x in ("ax", "ay", "az", "traw"))
+        g = (ax * ax + ay * ay + az * az) ** 0.5 / 16384
+        r.note(f"failures by check: WHO {k['ewho']}, temp {k['etmp']}, accel {k['eacc']}, 14-byte {k['e14']}")
+        r.note(f"last 14-byte read: accel ({ax}, {ay}, {az}) = {g:.3f} g, temperature {t / 340 + 36.53:.1f} C")
     r.ok(int(k["err"]) == 0, f"{k['err']} implausible values (WHO_AM_I changed, temperature or |accel| out of range)")
     r.ok(int(k["i2cerr"]) == 0, f"{k['i2cerr']} bus errors (NACK or timeout)")
     r.ok(int(k["stale"]) == 0, f"{k['stale']} stale bytes left in DR by a previous read")

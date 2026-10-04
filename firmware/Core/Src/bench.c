@@ -199,8 +199,10 @@ void bench_init(void)
 
 /* ---- MPU-6050 on I2C1 ------------------------------------------------------ */
 #define MPU_ADDR  0x68U
-static uint8_t  mpu_present, mpu_who;
+static uint8_t  mpu_present, mpu_who, mpu_pwr;
 static uint32_t mpu_n, mpu_err, mpu_stale, mpu_i2cerr, mpu_t14_max;
+static uint32_t e_who, e_tmp, e_acc, e_14;      /* which check failed     */
+static int16_t  last_ax, last_ay, last_az, last_t;  /* last raw 14-byte read */
 static uint32_t mpu_next;
 
 static int mpu_reg(uint8_t reg, uint8_t *buf, uint8_t n)
@@ -235,8 +237,14 @@ void bench_mpu_init(void)
         {
             mpu_present = 1U;
         }
+        /* Read PWR_MGMT_1 back: 0x40 (SLEEP set, the power-on value) means
+         * the wake write never landed and every data register reads zero. */
+        (void)mpu_reg(0x6BU, &mpu_pwr, 1U);
     }
-    printf(mpu_present ? "MPU 0x%02X\r\n" : "MPU ABSENT\r\n", mpu_who);
+    if (mpu_present)
+        printf("MPU 0x%02X pwr=0x%02X\r\n", mpu_who, mpu_pwr);
+    else
+        printf("MPU ABSENT\r\n");
     mpu_next = g_tick + 250U;                   /* half a window off the status line */
 }
 
@@ -249,13 +257,13 @@ void bench_mpu_poll(uint32_t now_ms)
     uint8_t who = 0;
 
     if (mpu_reg(0x75U, &who, 1U) != 0)       mpu_i2cerr++;
-    else if (who != mpu_who)                  mpu_err++;
+    else if (who != mpu_who)                  { mpu_err++; e_who++; }
 
     if (mpu_reg(0x41U, b, 2U) != 0)           mpu_i2cerr++;
-    else if (!temp_ok(b))                     mpu_err++;
+    else if (!temp_ok(b))                     { mpu_err++; e_tmp++; }
 
     if (mpu_reg(0x3BU, b, 6U) != 0)           mpu_i2cerr++;
-    else if (!accel_ok(b))                    mpu_err++;
+    else if (!accel_ok(b))                    { mpu_err++; e_acc++; }
 
     uint32_t t0 = micros();
     if (mpu_reg(0x3BU, b, 14U) != 0)          mpu_i2cerr++;
@@ -263,7 +271,9 @@ void bench_mpu_poll(uint32_t now_ms)
     {
         uint32_t dt = micros() - t0;
         if (dt > mpu_t14_max) mpu_t14_max = dt;
-        if (!accel_ok(b) || !temp_ok(&b[6]))  mpu_err++;
+        if (!accel_ok(b) || !temp_ok(&b[6]))  { mpu_err++; e_14++; }
+        last_ax = be16(&b[0]); last_ay = be16(&b[2]); last_az = be16(&b[4]);
+        last_t  = be16(&b[6]);
     }
     mpu_n++;
 }
@@ -322,10 +332,14 @@ void bench_status(void)
             break;
         case 2:
             if (mpu_present)
-                printf("mpu who=0x%02X n=%lu err=%lu stale=%lu i2cerr=%lu t14=%lu\r\n",
+                printf("mpu who=0x%02X n=%lu err=%lu stale=%lu i2cerr=%lu t14=%lu"
+                       " ewho=%lu etmp=%lu eacc=%lu e14=%lu ax=%d ay=%d az=%d traw=%d\r\n",
                        mpu_who, (unsigned long)mpu_n, (unsigned long)mpu_err,
                        (unsigned long)mpu_stale, (unsigned long)mpu_i2cerr,
-                       (unsigned long)mpu_t14_max);
+                       (unsigned long)mpu_t14_max,
+                       (unsigned long)e_who, (unsigned long)e_tmp,
+                       (unsigned long)e_acc, (unsigned long)e_14,
+                       last_ax, last_ay, last_az, last_t);
             else
                 printf("mpu absent\r\n");
             break;

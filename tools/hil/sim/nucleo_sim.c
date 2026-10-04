@@ -96,7 +96,7 @@ static void sim_bench_status(void)
     switch (k++ & 3u) {
     case 0: port_printf("perf t7=3599964-3600036 isr=5400/4100 loop=2160000/36000 tx=970000\r\n"); break;
     case 1: port_printf("stack peak=412 reserve=1024\r\n"); break;
-    case 2: port_printf("mpu who=0x68 n=%lu err=0 stale=0 i2cerr=0 t14=1708\r\n", (unsigned long)(g_tick / 500u)); break;
+    case 2: port_printf("mpu who=0x68 n=%lu err=0 stale=0 i2cerr=0 t14=1708 ewho=0 etmp=0 eacc=0 e14=0 ax=-312 ay=180 az=16210 traw=-4120\r\n", (unsigned long)(g_tick / 500u)); break;
     default: port_printf("pwm n=0 hi=0-0 per=0-0 sig=0\r\n"); break;
     }
 }
@@ -115,7 +115,7 @@ static void boot(void)
     reset_cause = " PIN";
     port_printf("SD FAIL\r\n");
     port_printf("BAR30 FAIL\r\n");
-    port_printf("MPU 0x68\r\n");
+    port_printf("MPU 0x68 pwr=0x00\r\n");
     port_printf("LINK USART2 ST-LINK VCP\r\n");
     control_loop_init();
     port_printf("TIMERS OK\r\n");
