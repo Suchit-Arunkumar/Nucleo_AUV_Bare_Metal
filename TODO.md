@@ -32,8 +32,8 @@ those runs could not reach:
 
 Measured, no longer open: worst main-loop pass 17.77 ms (2026-10-04,
 GCC 13.2.1, MPU test included) and 8.60 ms (2026-10-08, GCC 11.3.1, no
-MPU-6050 fitted); peak stack 872 B and 736 B respectively, against a
-2,048 B reservation since 4aecf75. All far inside the 341 ms watchdog floor.
+MPU-6050 fitted); peak stack 872 B (of the then 1,024 B reservation) and
+736 B (of 2,048 B since 4aecf75). All far inside the 341 ms watchdog floor.
 
 ## Configuration risks
 
