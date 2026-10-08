@@ -25,6 +25,9 @@ those runs could not reach:
   copy of `main.c`'s and has to be kept in step with it.
 - **Warning counts and sizes are from arm-none-eabi-gcc 13.2.1,** not the pinned
   11.3.1 toolchain.
+- **The overrun counter is not checked by the HIL suite.** `hil_test.py` ignores
+  the `ore=` status field, and no test provokes an overrun, so the counter is
+  built and printed but not exercised.
 
 Measured, no longer open: worst main-loop pass (17.77 ms against a 341 ms
 watchdog floor) and peak stack use (872 B).
