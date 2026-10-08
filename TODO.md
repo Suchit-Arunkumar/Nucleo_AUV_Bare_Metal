@@ -23,14 +23,17 @@ those runs could not reach:
 - **The HIL simulator mirrors `main.c` by hand.** `tools/hil/sim/nucleo_sim.c`
   compiles the real protocol and control-loop sources, but its main loop is a
   copy of `main.c`'s and has to be kept in step with it.
-- **Warning counts and sizes are from arm-none-eabi-gcc 13.2.1,** not the pinned
-  11.3.1 toolchain.
+- **Warning counts and sizes:** README figures are from arm-none-eabi-gcc
+  13.2.1; the 2026-10-08 HIL build used the pinned 11.3.1 (text 17748 /
+  data 100 / bss 5568, same three warnings).
 - **The overrun counter is not checked by the HIL suite.** `hil_test.py` ignores
   the `ore=` status field, and no test provokes an overrun, so the counter is
   built and printed but not exercised.
 
-Measured, no longer open: worst main-loop pass (17.77 ms against a 341 ms
-watchdog floor) and peak stack use (872 B).
+Measured, no longer open: worst main-loop pass 17.77 ms (2026-10-04,
+GCC 13.2.1, MPU test included) and 8.60 ms (2026-10-08, GCC 11.3.1, no
+MPU-6050 fitted); peak stack 872 B and 736 B respectively, against a
+2,048 B reservation since 4aecf75. All far inside the 341 ms watchdog floor.
 
 ## Configuration risks
 
