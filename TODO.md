@@ -61,8 +61,10 @@ Link to the Pi:
   compile-time constants.
 - **Telemetry `raw_depth_m` echoes the commanded depth,** not the Bar30,
   because `bar30_read()` is never called.
-- **No protocol version byte.** A payload layout change that keeps `TYPE` and
-  `LEN` passes the CRC and decodes to wrong values.
+- **The CMD version byte is not checked.** Telemetry carries
+  `PROTOCOL_VERSION` (1), and CMD has the same byte, but the parser accepts any
+  value, as pico-protocol does. Whether to drop or log a mismatch is a vehicle
+  decision.
 - **USART overruns are not counted.** A byte lost to an overrun (ORE) is not in
   `rxdrop`; it only shows up as a frame failing its CRC. At 115200 baud the
   receive interrupt has about 87 µs per byte, and TIM7 (priority 0) can hold it
@@ -108,18 +110,14 @@ Dead code:
 - **`uart1_write_byte()`** has no callers. (`micros()` is now used by the
   bench build's MPU timing.)
 - **`Protocol/struct.c`** is a zero-byte file that is compiled and linked.
-- **`B_forward`** is defined and never referenced.
 
 Cosmetic:
 
-- `struct.h` comments are stale: `TelemetryPayload` says `reserved` is 1 byte
-  (it is 5) and gives the CMD Python format string as `'<12f3B5s'` (the
-  struct is `'<12f2B6s'`).
 - `main.c` step comments run 2, 2a, 3 … 6, 8: step 7 (DAC) was removed and
   PWM init was moved to 2a without renumbering.
-- Six `-O2` warnings: `B_forward` unused, `TEMP` set-but-unused in
-  `bar30.c`, `write_data` unused in `oled.c`, `r7` set-but-unused in
-  `sd_card.c`, and two `-Waddress-of-packed-member` in `main.c`.
+- Two `-O2` warnings in the vehicle build: `TEMP` set-but-unused in `bar30.c`
+  and `r7` set-but-unused in `sd_card.c` (see README, Build). The bench build
+  adds a deliberate `#warning` from `bench.c`.
 
 ## Control loop
 

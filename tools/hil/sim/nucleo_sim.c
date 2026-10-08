@@ -212,6 +212,7 @@ int main(void)
             tp.armed   = control_loop_get_armed();
             tp.link_ok = control_loop_get_link();
             tp.sat_flags = 0;
+            tp.version   = PROTOCOL_VERSION;
             packet_build_telemetry(&tp, tx_buf);
             port_write(tx_buf, PACKET_SIZE);
         }

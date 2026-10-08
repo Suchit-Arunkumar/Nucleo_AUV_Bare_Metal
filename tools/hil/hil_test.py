@@ -52,8 +52,9 @@ PAYLOAD_LEN = 56
 PACKET_SIZE = 62
 TYPE_TELEMETRY, TYPE_CMD, TYPE_PID = 0x01, 0x02, 0x03
 
-CMD_FMT = "<12f2B6x"            # current xyz rpy, target xyz rpy, armed, seq, reserved[6]
-TELEM_FMT = "<2f6f8H3B5x"       # depth, raw_depth, pid_u[6], esc_pwm[8], armed, sat, link, reserved[5]
+PROTOCOL_VERSION = 1
+CMD_FMT = "<12f3B5x"            # current xyz rpy, target xyz rpy, armed, seq, version, reserved[5]
+TELEM_FMT = "<2f6f8H4B4x"       # depth, raw_depth, pid_u[6], esc_pwm[8], armed, sat, link, version, reserved[4]
 assert struct.calcsize(CMD_FMT) == PAYLOAD_LEN
 assert struct.calcsize(TELEM_FMT) == PAYLOAD_LEN
 
@@ -103,12 +104,12 @@ def build_bench(cmd: bytes) -> bytes:
 def build_cmd(z: float, armed: int, seq: int, corrupt_crc: bool = False) -> bytes:
     pose = [0.0, 0.0, z, 0.0, 0.0, 0.0]
     target = [0.0] * 6
-    payload = struct.pack(CMD_FMT, *pose, *target, armed & 1, seq & 0xFF)
+    payload = struct.pack(CMD_FMT, *pose, *target, armed & 1, seq & 0xFF, PROTOCOL_VERSION)
     return build_frame(TYPE_CMD, payload, corrupt_crc)
 
 
 class Telemetry:
-    __slots__ = ("t", "depth", "raw_depth", "pid_u", "esc_pwm", "armed", "sat", "link")
+    __slots__ = ("t", "depth", "raw_depth", "pid_u", "esc_pwm", "armed", "sat", "link", "version")
 
     def __init__(self, t: float, payload: bytes):
         v = struct.unpack(TELEM_FMT, payload)
@@ -116,7 +117,7 @@ class Telemetry:
         self.depth, self.raw_depth = v[0], v[1]
         self.pid_u = v[2:8]
         self.esc_pwm = v[8:16]
-        self.armed, self.sat, self.link = v[16], v[17], v[18]
+        self.armed, self.sat, self.link, self.version = v[16], v[17], v[18], v[19]
 
 
 class StreamDecoder:
@@ -420,6 +421,7 @@ def test_telemetry_idle(link: Link, seconds: float) -> Result:
     r.ok(bool(tl) and all(x.link == 0 for x in tl), "link_ok = 0 with no commands")
     r.ok(bool(tl) and all(x.armed == 0 for x in tl), "armed = 0 with no commands")
     r.ok(bool(tl) and all(all(p == NEUTRAL_US for p in x.esc_pwm) for x in tl), "all 8 ESC values at 1500 us")
+    r.ok(bool(tl) and all(x.version == PROTOCOL_VERSION for x in tl), f"protocol version = {PROTOCOL_VERSION} in every frame")
     return r
 
 

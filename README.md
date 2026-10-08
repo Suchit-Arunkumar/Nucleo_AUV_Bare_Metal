@@ -388,7 +388,8 @@ DMA on PA9/PA10, has not been run on hardware.
   reading, because `bar30_read()` is not yet called.
 - Telemetry is sent with a blocking write from the main loop: 5.292 ms of
   every 20 ms tick at 115,200 baud, measured.
-- There is no protocol version byte.
+- Every payload carries `PROTOCOL_VERSION` (1) in what was a reserved byte;
+  the parser does not reject other values.
 
 ---
 

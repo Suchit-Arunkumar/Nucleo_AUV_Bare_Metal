@@ -232,6 +232,7 @@ int main(void)
             tp.link_ok = control_loop_get_link();
 
             tp.sat_flags = 0;
+            tp.version   = PROTOCOL_VERSION;
 
             packet_build_telemetry(&tp, tx_buf);
 

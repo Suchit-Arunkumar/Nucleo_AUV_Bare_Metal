@@ -2,13 +2,19 @@
 #define STRUCT_H
 
 #include <stdint.h>
-#include "stm32f446xx.h"
+
+// Payload layouts for the Pi <-> MCU link. Wire format and the offset pins
+// that hold these layouts in place are in packet.h; the reference for both is
+// pico-protocol (firmware/pico_protocol.h).
 
 #define PAYLOAD_LEN 56
 
-// ── TYPE 0x01 : TELEMETRY payload (Pico → Pi, 56 bytes) ─────────────────────
-//
-// Centralised debug/monitoring snapshot — everything the Pi needs in one place.
+// Carried in every payload. It sits in a byte that earlier revisions sent as
+// reserved zero, so a receiver that ignores it keeps working; a receiver that
+// checks it can tell an old sender (0) from this layout (1).
+#define PROTOCOL_VERSION 1
+
+// ── TYPE 0x01 : TELEMETRY payload (MCU → Pi, 56 bytes) ──────────────────────
 //
 // Layout (__packed__, 56 bytes):
 //   float    depth_m        —  4 : control depth (current_z from fused CMD state)
@@ -18,9 +24,12 @@
 //   uint8_t  armed          —  1 : armed state (0/1)
 //   uint8_t  sat_flags      —  1 : bit0=sat_vert, bit1=sat_horiz, bit2=sat_yaw
 //   uint8_t  link_ok        —  1 : 1 = link healthy, 0 = lost/timeout
-//   uint8_t  reserved       —  1 : zero-padding
+//   uint8_t  version        —  1 : PROTOCOL_VERSION
+//   uint8_t  reserved[4]    —  4 : zero; covered by the CRC
 //                              ──
-//   Total                      56 bytes ✓
+//   Total                      56 bytes
+//
+// Python format string: '<2f6f8H4B4x'
 typedef struct __attribute__((packed)) {
     float    depth_m;
     float    raw_depth_m;
@@ -29,15 +38,15 @@ typedef struct __attribute__((packed)) {
     uint8_t  armed;
     uint8_t  sat_flags;
     uint8_t  link_ok;
-    uint8_t  reserved[5];
+    uint8_t  version;
+    uint8_t  reserved[4];
 } TelemetryPayload;
 _Static_assert(sizeof(TelemetryPayload) == PAYLOAD_LEN,"TelemetryPayload size mismatch");
 
 
-
-
-// ── TYPE 0x02 : CMD payload (Pi → Pico, 56 bytes) ───────────────────────────
-// Python format string: '<12f3B5s'
+// ── TYPE 0x02 : CMD payload (Pi → MCU, 56 bytes) ────────────────────────────
+//
+// Python format string: '<12f3B5x'  (armed, seq, version, reserved[5])
 typedef struct __attribute__((packed)) {
     float    current_x;
     float    current_y;
@@ -55,11 +64,10 @@ typedef struct __attribute__((packed)) {
 
     uint8_t  armed;
     uint8_t  seq;
+    uint8_t  version;
 
-    uint8_t  reserved[6];
+    uint8_t  reserved[5];
 } CommandPayload;
 _Static_assert(sizeof(CommandPayload) == PAYLOAD_LEN,"CommandPayload size mismatch");
-
-
 
 #endif

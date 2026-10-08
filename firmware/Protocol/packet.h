@@ -67,7 +67,8 @@ _Static_assert(offsetof(TelemetryPayload, esc_pwm)     == 32, "telemetry.esc_pwm
 _Static_assert(offsetof(TelemetryPayload, armed)       == 48, "telemetry.armed moved");
 _Static_assert(offsetof(TelemetryPayload, sat_flags)   == 49, "telemetry.sat_flags moved");
 _Static_assert(offsetof(TelemetryPayload, link_ok)     == 50, "telemetry.link_ok moved");
-_Static_assert(offsetof(TelemetryPayload, reserved)    == 51, "telemetry.reserved moved");
+_Static_assert(offsetof(TelemetryPayload, version)     == 51, "telemetry.version moved");
+_Static_assert(offsetof(TelemetryPayload, reserved)    == 52, "telemetry.reserved moved");
 
 _Static_assert(sizeof(CommandPayload) == PAYLOAD_LEN, "CommandPayload size");
 _Static_assert(offsetof(CommandPayload, current_x)     ==  0, "cmd.current_x moved");
@@ -84,7 +85,8 @@ _Static_assert(offsetof(CommandPayload, target_pitch)  == 40, "cmd.target_pitch 
 _Static_assert(offsetof(CommandPayload, target_yaw)    == 44, "cmd.target_yaw moved");
 _Static_assert(offsetof(CommandPayload, armed)         == 48, "cmd.armed moved");
 _Static_assert(offsetof(CommandPayload, seq)           == 49, "cmd.seq moved");
-_Static_assert(offsetof(CommandPayload, reserved)      == 50, "cmd.reserved moved");
+_Static_assert(offsetof(CommandPayload, version)       == 50, "cmd.version moved");
+_Static_assert(offsetof(CommandPayload, reserved)      == 51, "cmd.reserved moved");
 
 // =============================================================================
 // API
