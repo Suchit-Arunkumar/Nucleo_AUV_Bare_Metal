@@ -198,7 +198,8 @@ int main(void)
         if (g_tick - last_print >= 500)
         {
             last_print = g_tick;
-            printf("tick=%lu link=%d rxdrop=%lu\r\n", g_tick, local_link, rx_dropped_count());
+            printf("tick=%lu link=%d rxdrop=%lu ore=%lu\r\n", g_tick, local_link,
+                   rx_dropped_count(), rx_overrun_count());
             bench_status();
         }
 

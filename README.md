@@ -166,7 +166,7 @@ From `main()`. The order is deliberate, and the reason is given where it matters
 | 18 | `iwdg_init()` | Armed last, so slow init can't trip it; then prints `BOOT DONE` |
 
 On a bare board, measured: 62–95 ms from `BOOT OK` to `BOOT DONE`. The console
-then shows a status line every 500 ms, `tick=<ms> link=<0|1> rxdrop=<bytes>`,
+then shows a status line every 500 ms, `tick=<ms> link=<0|1> rxdrop=<bytes> ore=<count>`,
 followed in the bench build by one of four rotating measurement lines
 (`perf`, `stack`, `mpu`, `pwm`).
 
@@ -179,7 +179,7 @@ MPU 0x68 pwr=0x00
 LINK USART2 ST-LINK VCP
 TIMERS OK
 BOOT DONE
-tick=500 link=0 rxdrop=0
+tick=500 link=0 rxdrop=0 ore=0
 ```
 
 ---

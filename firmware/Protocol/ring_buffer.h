@@ -17,4 +17,10 @@ void     rx_eat(uint16_t len);
 // Total bytes dropped because the buffer was full, since boot.
 uint32_t rx_dropped_count(void);
 
+// Called from UART interrupt context when the UART reports an overrun (ORE):
+// a byte was lost in the peripheral before it reached the buffer, so it is
+// not in rx_dropped_count(). Total since boot.
+void     rx_note_overrun(void);
+uint32_t rx_overrun_count(void);
+
 #endif

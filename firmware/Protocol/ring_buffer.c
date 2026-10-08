@@ -14,6 +14,7 @@ static volatile uint16_t rx_head    = 0;   // where new data is written
 static volatile uint16_t rx_tail    = 0;   // where data is read from
 static volatile uint16_t rx_count   = 0;   // bytes available
 static volatile uint32_t rx_dropped = 0;   // bytes lost because the buffer was full
+static volatile uint32_t rx_overrun = 0;   // bytes lost in the UART (ORE), never buffered
 
 
 void rx_write(uint8_t *data, uint16_t len)
@@ -62,4 +63,14 @@ void rx_eat(uint16_t len)
 uint32_t rx_dropped_count(void)
 {
 	return rx_dropped;
+}
+
+void rx_note_overrun(void)
+{
+	rx_overrun++;   // UART ISRs only, one priority level: no other writer
+}
+
+uint32_t rx_overrun_count(void)
+{
+	return rx_overrun;
 }

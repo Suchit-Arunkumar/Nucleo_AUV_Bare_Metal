@@ -33,6 +33,9 @@ void USART2_IRQHandler(void)
 {
 	uint32_t sr = USART2->SR;
 
+	if (sr & USART_SR_ORE)
+		rx_note_overrun();   // a byte was lost before DR could be read
+
 	if (sr & (USART_SR_RXNE | USART_SR_ORE))
 	{
 		// Reading DR after SR clears RXNE and any ORE/NE/FE with it.

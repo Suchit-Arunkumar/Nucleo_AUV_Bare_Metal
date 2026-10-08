@@ -65,11 +65,11 @@ Link to the Pi:
   `PROTOCOL_VERSION` (1), and CMD has the same byte, but the parser accepts any
   value, as pico-protocol does. Whether to drop or log a mismatch is a vehicle
   decision.
-- **USART overruns are not counted.** A byte lost to an overrun (ORE) is not in
-  `rxdrop`; it only shows up as a frame failing its CRC. At 115200 baud the
-  receive interrupt has about 87 µs per byte, and TIM7 (priority 0) can hold it
-  off for the length of `control_loop_tick()`. That hold-off time hasn't been
-  measured.
+- **USART overruns are counted but not yet observed on hardware.** The status
+  line's `ore=` field counts ORE events on either link UART (USART1 notices
+  them at the next IDLE, since EIE is off). The worst-case TIM7 hold-off is
+  45.6 µs against about 87 µs per byte at 115200 baud, so none are expected;
+  a HIL run with the new field would confirm it.
 
 I2C:
 

@@ -99,7 +99,14 @@ void uart1_init(void)
 
 void USART1_IRQHandler(void)
 {
-    if(USART1->SR & USART_SR_IDLE)
+    uint32_t sr = USART1->SR;
+
+    /* ORE does not raise an interrupt here (EIE is off), so it is noticed at
+       the next IDLE. The SR-then-DR read below clears it with IDLE. */
+    if (sr & USART_SR_ORE)
+        rx_note_overrun();
+
+    if(sr & USART_SR_IDLE)
     {
         volatile uint32_t dummy;
 

@@ -193,8 +193,9 @@ int main(void)
         if (g_tick - last_print >= 500)
         {
             last_print = g_tick;
-            port_printf("tick=%lu link=%d rxdrop=%lu\r\n",
-                        (unsigned long)g_tick, local_link, (unsigned long)rx_dropped_count());
+            port_printf("tick=%lu link=%d rxdrop=%lu ore=%lu\r\n",
+                        (unsigned long)g_tick, local_link, (unsigned long)rx_dropped_count(),
+                        (unsigned long)rx_overrun_count());
             sim_bench_status();
         }
 
