@@ -9,6 +9,11 @@ the commit history, not here.
 Run on hardware 2026-10-04 (14 / 14 HIL tests, reports in
 `tools/hil/reports/`). What that run could not reach:
 
+- **The firmware has changed since that run.** The vehicle-build defaults, the
+  protocol version byte, the overrun counter, the explicit VOS write, the larger
+  stack reservation and the SPI BR fix build cleanly and pass the HIL suite
+  against the host simulator, but have not been run on the board. Re-run
+  `tools/hil/hil_test.py` on the bench build before relying on them.
 - **USART1 with DMA on PA9/PA10**, the vehicle's Pi link. The HIL link runs over
   USART2. Testing it needs a jumper from PA9 to PA10 and a loopback mode, as the
   FreeRTOS tree has, or a USB-serial adapter.
@@ -99,7 +104,6 @@ Dead code:
   include path removed from `.cproject`.
 - **`uart1_write_byte()`** has no callers. (`micros()` is now used by the
   bench build's MPU timing.)
-- **`Protocol/struct.c`** is a zero-byte file that is compiled and linked.
 
 Cosmetic:
 
