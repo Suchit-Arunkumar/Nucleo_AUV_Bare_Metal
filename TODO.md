@@ -30,9 +30,9 @@ watchdog floor) and peak stack use (872 B).
 
 ## Configuration risks
 
-- **`PWR_CR.VOS` is relied on at its reset value (Scale 1)** rather than
-  written explicitly. If any path leaves VOS at Scale 2 — bootloader, warm
-  reset, debugger reload — the `ODRDY` poll becomes a silent infinite hang.
+- **The over-drive polls (`ODRDY`, `ODSWRDY`) have no timeout.** VOS is now
+  written explicitly, which removes the known way they could hang, but a
+  hardware fault there would still stop boot with no message.
 - **CubeIDE Release configuration has never been set up.** It has only the
   stock include paths and still defines `USE_HAL_DRIVER`.
 - **ESC pins float from reset until PWM init.** PWM init runs right after
@@ -43,11 +43,6 @@ watchdog floor) and peak stack use (872 B).
   the vehicle build; the bench build needs `BENCH_HIL=1` and
   `LINK_PORT_STLINK=1` added by hand. A dedicated build configuration would make
   switching less error-prone.
-- **The linker stack reservation is 1,024 B and the measured peak is 872 B**
-  (85 %). The stack can grow below the reservation into free RAM, so nothing
-  overflows today, but the linker would no longer catch the heap and stack
-  meeting. Raise `_Min_Stack_Size` to `0x800`. The deepest path is most likely
-  newlib-nano `printf`.
 - **Blocking console output sets the worst main-loop pass.** 17.77 ms measured,
   mostly the 62-byte telemetry frame (5.29 ms) plus status lines at 115,200
   baud in the same pass. Harmless against the watchdog; a DMA TX path would
@@ -95,11 +90,6 @@ SPI and SD card:
 - **`LogRecord.crc16` holds only the low 16 bits** of the 32-bit hardware CRC.
 - **Up to 11 log records (220 ms) live only in RAM** and are lost on power
   loss — the cost of packing 12 records per block.
-
-Same bug class as the fixed AFR writes, currently harmless:
-
-- `SPI1->CR1 |= (3U << 3)` ORs into the BR field without clearing it. The
-  field is zero from reset and written once, so the result is correct today.
 
 Dead code:
 

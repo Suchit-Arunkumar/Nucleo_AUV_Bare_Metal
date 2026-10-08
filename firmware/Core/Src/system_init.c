@@ -18,9 +18,13 @@ void system_clock_init(void){
 	/* 2. PWR clock — PWR is on APB1, must be clocked before its registers
 	      are writable (over-drive lives in PWR->CR / PWR->CSR) */
 	RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+	(void)RCC->APB1ENR;   /* read back: the clock is on before PWR is touched */
 
-	/* 3. PWR->CR VOS is left at its reset value (Scale 1) — not written.
-	      See report. */
+	/* 3. Regulator voltage Scale 1 (VOS = 11), required for 180 MHz. It is the
+	      reset value, but a bootloader, warm reset or debugger reload can leave
+	      it otherwise, and then the ODRDY poll below would never finish. VOS
+	      may only change while the PLL is off, which it still is here. */
+	PWR->CR = (PWR->CR & ~PWR_CR_VOS) | PWR_CR_VOS;
 
 	/* 4. Flash configuration for 180 MHz — 5 wait states */
 	FLASH->ACR =

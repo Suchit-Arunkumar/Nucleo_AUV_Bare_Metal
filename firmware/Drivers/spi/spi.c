@@ -56,7 +56,8 @@ void spi1_init(void)
     // 14. configure SPI_CR1
     SPI1->CR1 |= SPI_CR1_SSM;      // software slave management
     SPI1->CR1 |= SPI_CR1_SSI;      // internal NSS high, prevents MODF
-    SPI1->CR1 |= (3U << 3);        // BR[2:0] = 011 → fPCLK/16
+    SPI1->CR1 &= ~SPI_CR1_BR;      // clear BR before setting it
+    SPI1->CR1 |= (3U << SPI_CR1_BR_Pos);  // BR[2:0] = 011 → fPCLK/16
     SPI1->CR1 |= SPI_CR1_MSTR;     // master mode
 
     // 15. enable SPI1 by setting SPE bit in CR1

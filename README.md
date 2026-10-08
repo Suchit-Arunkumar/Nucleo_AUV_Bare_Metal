@@ -209,9 +209,10 @@ Timer clocks double when their APB prescaler is not 1 (`RCC_DCKCFGR.TIMPRE` is
 left at 0). That is why TIM2/3/4/7/12 run from 90 MHz while APB1 itself is
 45 MHz.
 
-`PWR_CR.VOS` is relied on at its reset value (Scale 1). A warm reset or
-bootloader path that leaves VOS at Scale 2 would turn the `ODRDY` poll into a
-silent infinite hang; ST's reference sequence writes VOS explicitly.
+`PWR_CR.VOS` is written to Scale 1 explicitly, before the PLL starts. It is the
+reset value, but a warm reset or bootloader path that left VOS at Scale 2 would
+turn the `ODRDY` poll into a silent infinite hang. The `ODRDY`/`ODSWRDY` polls
+themselves are still unbounded.
 
 PLLQ and PLLR stay at reset (4 and 2). With a 360 MHz VCO, PLLQ gives 90 MHz,
 not the 48 MHz USB OTG needs, so USB can't be clocked from the main PLL.
@@ -595,10 +596,10 @@ source column says which.
 | This chip's LSI oscillator | ≈ 28.5 kHz, derived from the watchdog timeout (datasheet range 17–47 kHz) | report `5a2af27` |
 | Boot to main loop, nothing attached | 62–95 ms, SD and Bar30 absence handled without hanging | reports |
 | **Memory** | | |
-| Flash, vehicle build | 16,472 B, 3.1 % of 512 KiB | `arm-none-eabi-size` |
-| Flash, bench build (with test hooks) | 20,192 B, 3.9 % | `arm-none-eabi-size` |
-| Static RAM, vehicle build | 4,384 B, 3.3 % of 128 KiB | `arm-none-eabi-size` |
-| Stack high-water mark | 872 B peak (painted MSP), against a 1,024 B linker reservation | report `5a2af27` |
+| Flash, vehicle build | 16,544 B, 3.2 % of 512 KiB | `arm-none-eabi-size` |
+| Flash, bench build (with test hooks) | 20,280 B, 3.9 % | `arm-none-eabi-size` |
+| Static RAM, vehicle build | 5,416 B, 4.1 % of 128 KiB | `arm-none-eabi-size` |
+| Stack high-water mark | 872 B peak (painted MSP), against a 2,048 B linker reservation (1,024 B at the time of the run) | report `5a2af27` |
 | SD write amplification | 1 block write per 12 log records: 250 writes for 3,000 records, vs 3,000 before | off-target test |
 | Compiler warnings at `-O2` | 2, both marking known gaps ([TODO.md](TODO.md)) | build |
 
@@ -737,13 +738,13 @@ CubeIDE: Properties → C/C++ Build → Settings → MCU GCC Compiler → Prepro
 
 | Build | text | data | bss | Flash (text + data) | Static RAM (data + bss) |
 |---|---|---|---|---|---|
-| Vehicle (`LINK_PORT_STLINK=0`, `BENCH_HIL=0`) | 16,372 | 100 | 4,284 | 16,472 B (3.1 % of 512 KiB) | 4,384 B (3.3 % of 128 KiB) |
-| Bench (`LINK_PORT_STLINK=1`, `BENCH_HIL=1`) | 20,092 | 100 | 4,536 | 20,192 B (3.9 %) | 4,636 B (3.5 %) |
+| Vehicle (`LINK_PORT_STLINK=0`, `BENCH_HIL=0`) | 16,444 | 100 | 5,316 | 16,544 B (3.2 % of 512 KiB) | 5,416 B (4.1 % of 128 KiB) |
+| Bench (`LINK_PORT_STLINK=1`, `BENCH_HIL=1`) | 20,180 | 100 | 5,560 | 20,280 B (3.9 %) | 5,660 B (4.3 %) |
 
-The RAM figures include the linker's 1,536-byte heap and stack reservation
-(`_Min_Heap_Size 0x200`, `_Min_Stack_Size 0x400`) and the logger's 512-byte
-block buffer. The measured stack peak is 872 B; the stack can grow past the
-reservation into free RAM, but the reservation should be raised (TODO.md).
+The RAM figures include the linker's 2,560-byte heap and stack reservation
+(`_Min_Heap_Size 0x200`, `_Min_Stack_Size 0x800`) and the logger's 512-byte
+block buffer. The measured stack peak is 872 B, so the reservation has about
+2× margin.
 
 Two warnings remain at `-O2`, both deliberate markers of unfinished work:
 `TEMP` set but unused in `bar30.c` (second-order temperature compensation not
