@@ -3,7 +3,7 @@
 FW      := ../../../firmware
 CC      ?= cc
 CFLAGS  ?= -std=gnu11 -O2 -Wall -Wextra
-CPPFLAGS = -Ishim -I$(FW)/Protocol -I$(FW)/Core/Inc
+CPPFLAGS = -DBENCH_HIL=1 -Ishim -I$(FW)/Protocol -I$(FW)/Core/Inc
 
 SRCS = nucleo_sim.c \
        $(FW)/Protocol/packet.c \

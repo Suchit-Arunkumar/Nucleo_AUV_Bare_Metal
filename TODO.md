@@ -39,11 +39,10 @@ watchdog floor) and peak stack use (872 B).
   `systick_init()`, but the pins are floating inputs through
   `system_clock_init()`. External pull-downs on the eight ESC signal lines
   would close that window.
-- **The default build is the bench build.** It puts the Pi link on USART2
-  (ST-LINK USB) and compiles the `BENCH_HIL` hooks, which can drive the ESCs off
-  neutral and stop the watchdog refresh on command. The vehicle needs
-  `-DLINK_PORT_STLINK=0 -DBENCH_HIL=0`; forgetting the first leaves the Pi's
-  UART silent, forgetting the second leaves test hooks on a live vehicle.
+- **CubeIDE has no separate Bench configuration.** The default build is now
+  the vehicle build; the bench build needs `BENCH_HIL=1` and
+  `LINK_PORT_STLINK=1` added by hand. A dedicated build configuration would make
+  switching less error-prone.
 - **The linker stack reservation is 1,024 B and the measured peak is 872 B**
   (85 %). The stack can grow below the reservation into free RAM, so nothing
   overflows today, but the linker would no longer catch the heap and stack

@@ -15,9 +15,9 @@
 //   LINK_PORT_STLINK = 0   USART1 on PA9/PA10 with DMA receive: the wiring to
 //                          the Raspberry Pi on the vehicle.
 //
-// Defaults to 1. Build with -DLINK_PORT_STLINK=0 for the vehicle.
+// Defaults to 0, the vehicle. Build with -DLINK_PORT_STLINK=1 for the bench.
 #ifndef LINK_PORT_STLINK
-#define LINK_PORT_STLINK 1
+#define LINK_PORT_STLINK 0
 #endif
 
 // Start receiving on the link UART. With LINK_PORT_STLINK, uart2_init() must

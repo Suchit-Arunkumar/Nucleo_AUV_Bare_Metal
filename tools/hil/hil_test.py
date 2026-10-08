@@ -3,7 +3,7 @@
 Hardware-in-the-loop test for Nucleo_AUV_Bare_Metal.
 
 The laptop plays the Raspberry Pi. It talks to the NUCLEO-F446RE over the
-ST-LINK USB cable (the firmware's default LINK_PORT_STLINK=1 build), sends
+ST-LINK USB cable (the bench build: -DBENCH_HIL=1 -DLINK_PORT_STLINK=1), sends
 the same 62-byte CMD frames the Pi would, and checks what the board sends
 back: the console lines and the 50 Hz telemetry frames.
 

@@ -323,8 +323,8 @@ time:
 
 | Setting | UART | Receive | Use |
 |---|---|---|---|
-| `1` (default) | USART2, the ST-LINK virtual COM port on the USB cable | RXNE interrupt, one byte at a time | Bench testing with a laptop, no adapter ([`tools/hil/`](tools/hil/)) |
-| `0` | USART1 on PA9/PA10 | DMA2 Stream 2 circular + IDLE interrupt | The vehicle, wired to the Pi |
+| `1` | USART2, the ST-LINK virtual COM port on the USB cable | RXNE interrupt, one byte at a time | Bench testing with a laptop, no adapter ([`tools/hil/`](tools/hil/)) |
+| `0` (default) | USART1 on PA9/PA10 | DMA2 Stream 2 circular + IDLE interrupt | The vehicle, wired to the Pi |
 
 In the bench build the `printf` console shares USART2 with the protocol. Lines and
 frames are both written whole from the main loop, never interleaved, and console
@@ -723,20 +723,21 @@ LD: -T STM32F446RETX_FLASH.ld -Wl,--gc-sections --specs=nosys.specs -lc -lm
 
 | Define | Default | Effect |
 |---|---|---|
-| `LINK_PORT_STLINK` | `1` | Pi link on USART2 over the ST-LINK USB cable (bench). `0`: USART1 on PA9/PA10 with DMA (vehicle) |
-| `BENCH_HIL` | `1` | HIL instrumentation in `Core/Src/bench.c`: DWT timing, stack painting, PA15 capture, MPU-6050 checks, `BENCH:` commands. `0`: none of it compiled |
+| `LINK_PORT_STLINK` | `0` | `0`: Pi link on USART1, PA9/PA10 with DMA (vehicle). `1`: USART2 over the ST-LINK USB cable (bench) |
+| `BENCH_HIL` | `0` | `1`: HIL instrumentation in `Core/Src/bench.c`: DWT timing, stack painting, PA15 capture, MPU-6050 checks, `BENCH:` commands. `0`: none of it compiled |
 
-**The vehicle build is `-DLINK_PORT_STLINK=0 -DBENCH_HIL=0`.** The bench build
-can drive the ESC outputs off neutral on command and stop the watchdog
-refresh; it must never be flashed to a vehicle with ESCs attached. In CubeIDE:
-Properties → C/C++ Build → Settings → MCU GCC Compiler → Preprocessor.
+**The default build is the vehicle build.** The bench build is opt-in with
+`-DBENCH_HIL=1 -DLINK_PORT_STLINK=1`, and prints a compiler warning saying so:
+it can drive the ESC outputs off neutral on command and stop the watchdog
+refresh, so it must never be flashed to a vehicle with ESCs attached. In
+CubeIDE: Properties → C/C++ Build → Settings → MCU GCC Compiler → Preprocessor.
 
 **Size at `-O2`** (arm-none-eabi-gcc 13.2.1; 11.3.1 will differ slightly)
 
 | Build | text | data | bss | Flash (text + data) | Static RAM (data + bss) |
 |---|---|---|---|---|---|
 | Vehicle (`LINK_PORT_STLINK=0`, `BENCH_HIL=0`) | 16,372 | 100 | 4,284 | 16,472 B (3.1 % of 512 KiB) | 4,384 B (3.3 % of 128 KiB) |
-| Bench (defaults) | 20,092 | 100 | 4,536 | 20,192 B (3.9 %) | 4,636 B (3.5 %) |
+| Bench (`LINK_PORT_STLINK=1`, `BENCH_HIL=1`) | 20,092 | 100 | 4,536 | 20,192 B (3.9 %) | 4,636 B (3.5 %) |
 
 The RAM figures include the linker's 1,536-byte heap and stack reservation
 (`_Min_Heap_Size 0x200`, `_Min_Stack_Size 0x400`) and the logger's 512-byte

@@ -17,6 +17,9 @@
 
 #if BENCH_HIL
 
+// Once per build, in the one file that only exists for the bench.
+#warning "BENCH_HIL=1: test hooks can drive the ESCs and stop the watchdog. Never flash this to a vehicle."
+
 #include <stdio.h>
 #include <string.h>
 #include "stm32f446xx.h"

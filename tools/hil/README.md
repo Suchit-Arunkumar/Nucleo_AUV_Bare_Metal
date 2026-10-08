@@ -3,7 +3,7 @@
 `hil_test.py` runs the firmware on a real NUCLEO-F446RE. A laptop stands in for
 the Raspberry Pi: it talks to the board over the same USB cable used for
 flashing, sends the Pi's 62-byte command frames, and checks everything the board
-sends back. With the `BENCH_HIL` build (the default) the board also measures
+sends back. With the `BENCH_HIL` build (opt-in, see below) the board also measures
 itself, with the DWT cycle counter and TIM2 input capture, and reports the
 numbers on its console.
 
@@ -26,18 +26,20 @@ decides which UART carries the Pi protocol:
 
 | `LINK_PORT_STLINK` | Link UART | Use |
 |---|---|---|
-| `1` (default) | USART2: the ST-LINK virtual COM port on the USB cable | Bench testing with this script |
-| `0` | USART1 on PA9/PA10, DMA receive | The vehicle, wired to the Pi |
+| `1` | USART2: the ST-LINK virtual COM port on the USB cable | Bench testing with this script |
+| `0` (default) | USART1 on PA9/PA10, DMA receive | The vehicle, wired to the Pi |
 
-In the default build, the console (`printf`) and the protocol share the USB port.
+In the bench build, the console (`printf`) and the protocol share the USB port.
 The firmware writes text lines and frames whole from its main loop, so they never
 interleave. The script separates them the same way the firmware's parser does:
 anything that isn't a valid frame is treated as text.
 
 ## Running it
 
-1. Flash the firmware as usual from STM32CubeIDE. The default build has
-   `LINK_PORT_STLINK = 1`.
+1. Flash the **bench** build: add `BENCH_HIL=1` and `LINK_PORT_STLINK=1` to the
+   preprocessor defines (CubeIDE: Properties → C/C++ Build → Settings → MCU GCC
+   Compiler → Preprocessor). The default build is the vehicle build, which puts
+   the link on USART1 and compiles none of the test hooks.
 2. Close anything holding the board's serial port, such as CubeIDE's serial
    console or a terminal program. If you flashed through a debug session, either
    end it or press Resume, so the core isn't sitting halted at `main()`.

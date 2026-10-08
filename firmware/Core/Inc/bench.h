@@ -4,8 +4,7 @@
 /*
  * BENCH_HIL - measurements for tools/hil/hil_test.py on a bare Nucleo.
  *
- * 1 (default, like LINK_PORT_STLINK): DWT timing of the TIM7 ISR and the
- *   main loop, MSP stack painting, PWM measured on PA15 by TIM2_CH1 input
+ * 1: DWT timing of the TIM7 ISR and the main loop, MSP stack painting, PWM measured on PA15 by TIM2_CH1 input
  *   capture, an MPU-6050 sanity read on I2C1, the reset cause, and two
  *   commands carried in TYPE_PID frames ("BENCH:HANG", "BENCH:SIG1"/"SIG0").
  *   Results are printed in the 500 ms status cadence.
@@ -13,11 +12,11 @@
  *   BENCH:SIG1 drives the ESC outputs off neutral and BENCH:HANG stops the
  *   watchdog refresh. Never flash a BENCH_HIL build to a vehicle with ESCs.
  *
- * 0: none of it is compiled. Build the vehicle with
- *   -DLINK_PORT_STLINK=0 -DBENCH_HIL=0.
+ * 0 (default): none of it is compiled. The default build is the vehicle
+ *   build; the bench build is opt-in: -DBENCH_HIL=1 -DLINK_PORT_STLINK=1.
  */
 #ifndef BENCH_HIL
-#define BENCH_HIL 1
+#define BENCH_HIL 0
 #endif
 
 #include <stdint.h>
