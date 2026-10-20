@@ -97,8 +97,10 @@ bool link_ok = false;
 // =============================================================================
 static inline float wrapAngle180(float angle)
 {
-    while (angle >  180.0f) angle -= 360.0f;
-    while (angle < -180.0f) angle += 360.0f;
+    if (!isfinite(angle)) return 0.0f;
+    angle = fmodf(angle, 360.0f);
+    if (angle > 180.0f)       angle -= 360.0f;
+    else if (angle < -180.0f) angle += 360.0f;
     return angle;
 }
 
