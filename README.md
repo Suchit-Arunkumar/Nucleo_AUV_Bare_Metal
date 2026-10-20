@@ -8,7 +8,8 @@ Raspberry Pi, SPI SD logging, an I2C pressure sensor, an SPI OLED, a 50 Hz
 `Drivers/`, `Devices/` and `Protocol/` is a direct register write traceable to
 RM0390, PM0214 or DS10693.
 
-**Verified on a NUCLEO-F446RE**: 14 of 14 hardware-in-the-loop tests pass, with
+**Verified on a NUCLEO-F446RE**: 14 of 14 hardware-in-the-loop tests pass at
+`5a2af27` (2026-10-04), and 12 of 12 on 2026-10-08 with PWM and I2C skipped, with
 0.34 µs worst control-tick jitter and 0 CRC errors over a 60 s, 50 Hz soak.
 Bring-up found three defects that compiling never showed. Measured results are in
 [Key figures](#key-figures) and
@@ -57,7 +58,7 @@ Open issues are listed in [TODO.md](TODO.md).
 | | |
 |---|---|
 | Builds at `-O2` | Yes: 0 errors, 2 warnings (arm-none-eabi-gcc 13.2.1), both in code paths not yet used |
-| Verified on hardware | **Yes, on a bare NUCLEO-F446RE**: 14 / 14 HIL tests, 2026-10-04 ([reports](tools/hil/reports/)) |
+| Verified on hardware | **Yes, on a bare NUCLEO-F446RE**: 14 / 14 HIL tests, 2026-10-04 at `5a2af27`; 12 / 12 on 2026-10-08, PWM and I2C skipped ([reports](tools/hil/reports/)) |
 | Exercised on hardware | Clock tree, SysTick, TIM2/3/4/7/12, USART2 + RX interrupt, I2C1 (against an MPU-6050), IWDG, RCC reset flags, the protocol, control loop and failsafe |
 | Not exercised on hardware | USART1 + DMA on PA9/PA10, SD card writes, the OLED, the Bar30, ESCs and thrusters |
 | Vehicle integration | Not yet: bench-verified only. On the SAUVC 2026 vehicle the Pi ran the VN-200 and DVL, and the RP2350 (Pico 2) firmware drove all 8 ESCs and ran the Bar30, SD logging and display, on the same wire protocol |

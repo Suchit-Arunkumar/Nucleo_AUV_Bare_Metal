@@ -6,7 +6,7 @@ the commit history, not here.
 
 ## Verification gaps
 
-Run on hardware 2026-10-04 (14 / 14) and again on 2026-10-08 after the review
+Run on hardware 2026-10-04 (14 / 14 at `5a2af27`) and again on 2026-10-08 after the review
 fixes (12 / 12, PWM and I2C skipped); reports in `tools/hil/reports/`. What
 those runs could not reach:
 
