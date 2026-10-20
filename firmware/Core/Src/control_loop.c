@@ -151,11 +151,14 @@ void cmd_update(const float new_pose[N_DOF],
                 const float new_target[N_DOF],
                 bool        arm_flag)
 {
+    uint32_t pm = __get_PRIMASK();
+    __disable_irq();
     memcpy(pose,   new_pose,   N_DOF * sizeof(float));
     memcpy(target, new_target, N_DOF * sizeof(float));
     g_armed     = arm_flag;
     link_ok     = true;
     last_cmd_ms = g_tick;
+    __set_PRIMASK(pm);
 }
 
 // =============================================================================
