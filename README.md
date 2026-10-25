@@ -1,5 +1,12 @@
 # Nucleo_AUV_Bare_Metal
 
+Register-level STM32F446RE control node for Team Tiburon's AUV.
+Status: bench-verified on a NUCLEO-F446RE, not yet integrated on the vehicle.
+Not exercised on hardware: USART1 + DMA on PA9/PA10, SD card writes, the OLED, the Bar30, ESCs and thrusters.
+
+[TIBURON-AUV-FreeRTOS](https://github.com/Suchit-Arunkumar/TIBURON-AUV-FreeRTOS)
+is the FreeRTOS build of the same stack.
+
 Register-level firmware for an 8-thruster AUV control node on the STM32F446RE
 (NUCLEO-F446RE), written without HAL or LL: a 180 MHz clock tree with
 over-drive, eight ESC PWM channels across three timers, a CRC-16 binary link to a
